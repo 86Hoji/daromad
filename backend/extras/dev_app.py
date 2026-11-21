@@ -5,12 +5,16 @@
 
     POST /api/debts/{id}/remind/preview   текст SMS и можно ли отправить
     POST /api/debts/{id}/remind           отправить напоминание (SMS + ссылка на 7 дней)
+    GET  /api/debts/{id}/remind/status    последнее напоминание: доставлено ли, оплачено ли
     GET  /api/pay/{token}                 данные для страницы оплаты
     POST /api/pay/{token}/confirm         оплатить (повтор не списывает дважды)
     GET  /api/dev/debts, POST /api/dev/reset   только для демо
 
 Ошибки: {"error": code, "detail": ...} с кодами not_found, token_expired, debt_closed,
-no_phone, no_consent, too_soon, sms_failed, link_too_long, unauthorized.
+no_phone, no_consent, too_soon, sms_failed, link_too_long, link_not_public, unauthorized.
+
+Запускать ОДНИМ процессом (без --workers): демо-долги живут в памяти процесса.
+При запуске в демо-режиме (adapters.IN_MEMORY) ссылки в tokens.json сбрасываются вместе с долгами.
 
 Только JSON: страницу оплаты /pay/{token} делает Ходжиакбар в Mini App поверх /api/pay/*.
 Доступ: API оплаты (/api/pay) открыт — его вызывает страница, которую должник открывает по ссылке.
@@ -23,7 +27,9 @@ no_phone, no_consent, too_soon, sms_failed, link_too_long, unauthorized.
 from __future__ import annotations
 
 import hmac
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,7 +38,22 @@ from fastapi.responses import JSONResponse
 from . import adapters, payments, reminders
 from .payments import ExtrasError
 
-app = FastAPI(title="Daromad extras (dev)")
+log = logging.getLogger("extras.dev_app")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Заглушка adapters хранит долги в памяти: при перезапуске они снова «открыты». Ссылки на диске
+    # (tokens.json) сбрасываем вместе с ними, иначе после рестарта «Напомнить» даст too_soon,
+    # а старая ссылка покажет «оплачено» по открытому долгу. С настоящей БД (IN_MEMORY=False) не трогаем.
+    if adapters.IN_MEMORY:
+        with payments._lock:
+            payments._save_tokens({})
+        log.warning("demo mode: in-memory debts and pay links reset")
+    yield
+
+
+app = FastAPI(title="Daromad extras (dev)", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])  # как в main.py
 
 

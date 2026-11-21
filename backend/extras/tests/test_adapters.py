@@ -59,3 +59,14 @@ def test_audit_actor_is_checked():
 def test_notify_owner_is_recorded():
     adapters.notify_owner(1, "Alisher to'ladi ✅ 450 000 so'm")
     assert adapters.notifications[-1]["text"].startswith("Alisher to'ladi")
+
+
+
+def test_demo_debtor_phone_from_env(monkeypatch):
+    monkeypatch.setenv("DEMO_DEBTOR_PHONE", "93 000 00 11")
+    adapters.reset()
+    assert adapters.get_debt(1)["phone"] == "998930000011"
+    assert adapters.get_debt(2)["phone"] == "998907654321"           # остальные не трогаем
+    monkeypatch.setenv("DEMO_DEBTOR_PHONE", "garbage")
+    adapters.reset()
+    assert adapters.get_debt(1)["phone"] == "998901234567"           # мусор — остаётся сид

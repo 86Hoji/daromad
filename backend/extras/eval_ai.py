@@ -42,7 +42,8 @@ AUDIO_MIME = {".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".
               ".mp3": "audio/mp3", ".m4a": "audio/aac", ".aac": "audio/aac", ".flac": "audio/flac",
               ".aiff": "audio/aiff"}
 PAUSE_SECONDS = 1.0          # между запросами, чтобы не упереться в лимит бесплатного уровня
-MAIN_AI_TIMEOUT = 30         # основной ai.py сам не ограничивает ожидание; на одну модель
+MAIN_AI_TIMEOUT = 30         # старый ai.py без своей цепочки моделей: ждём одну модель не дольше этого
+MAIN_CHAIN_TIMEOUT = 180     # новый ai.py (FALLBACK_MODELS): сам перебирает модели, ждём всю его цепочку
 
 
 # --- примеры ----------------------------------------------------------------------------
@@ -224,9 +225,16 @@ def _setup_main_ai() -> list[str]:
 
 
 async def _main_ai(models: list[str], **kwargs) -> dict:
-    """ai.parse_input с перебором моделей (основной ai.py сам запасную модель не берёт)."""
+    """ai.parse_input. Если у основного ai.py своя цепочка моделей (FALLBACK_MODELS) — один вызов,
+    как в боте; иначе перебираем модели сами."""
     import ai
     import config
+    if hasattr(ai, "FALLBACK_MODELS"):
+        config.GEMINI_MODEL = models[0]
+        try:
+            return await asyncio.wait_for(ai.parse_input(**kwargs), MAIN_CHAIN_TIMEOUT)
+        except (ai.AIUnavailable, asyncio.TimeoutError) as exc:
+            raise RuntimeError(f"main ai chain failed: {exc if str(exc) else 'timeout'}") from exc
     last = None
     for m in models:
         config.GEMINI_MODEL = m

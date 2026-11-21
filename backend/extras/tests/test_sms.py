@@ -171,6 +171,7 @@ def eskiz(monkeypatch, handler, email="a@b.uz", password="pw"):
     monkeypatch.setenv("ESKIZ_EMAIL", email)
     monkeypatch.setenv("ESKIZ_PASSWORD", password)
     monkeypatch.setenv("ESKIZ_TEST_MODE", "0")
+    monkeypatch.setenv("SMS_ALLOW_ANY", "1")             # здесь проверяется сам клиент Eskiz
     calls = []
 
     def _handler(request):
@@ -305,3 +306,67 @@ def test_test_mode_does_not_touch_mock(monkeypatch):
     monkeypatch.setenv("ESKIZ_TEST_MODE", "1")
     sms.send_sms("998901234567", "Real matn")
     assert sms.read_outbox()[-1]["text"] == "Real matn"
+
+
+# --- защита: настоящие SMS только на разрешённые номера ---------------------------------
+
+def test_eskiz_blocks_unknown_number_without_calling_eskiz(monkeypatch):
+    calls = eskiz(monkeypatch, ok_handler)
+    monkeypatch.setenv("SMS_ALLOW_ANY", "")
+    r = sms.send_sms("998901234567", "Salom")
+    assert r["status"] == "failed" and "not allowed" in r["error"] and calls == []
+
+
+@pytest.mark.parametrize("var,value", [("DEMO_DEBTOR_PHONE", "+998 93 000 00 11"),
+                                       ("SMS_ALLOWLIST", "998901111111, 93 000 00 11"),
+                                       ("SMS_ALLOW_ANY", "1")])
+def test_eskiz_allows_listed_number(monkeypatch, var, value):
+    calls = eskiz(monkeypatch, ok_handler)
+    monkeypatch.setenv("SMS_ALLOW_ANY", "")
+    monkeypatch.setenv(var, value)
+    assert sms.send_sms("998930000011", "Salom")["status"] == "sent" and len(calls) == 2
+
+
+def test_allowlist_ignores_garbage():
+    import os
+    os.environ["SMS_ALLOWLIST"] = "abc, 123, ,998901234567"
+    assert sms.allowed_numbers() == {"998901234567"}
+
+
+def test_mock_is_never_blocked(monkeypatch):
+    monkeypatch.setenv("SMS_ALLOW_ANY", "")
+    assert sms.send_sms("998901234567", "Salom")["status"] == "sent"
+
+
+# --- статус доставки Eskiz (формат снят с настоящего ответа) ---------------------------
+
+def status_handler(status="DELIVERED", code=200):
+    def h(request, calls):
+        if request.url.path.endswith("/auth/login"):
+            return httpx.Response(200, json={"data": {"token": "T1"}})
+        if code != 200:
+            return httpx.Response(code, json={"message": "record not found", "status": "error"})
+        return httpx.Response(200, json={"status": "success", "data": {
+            "request_id": "abc", "status": status, "price": 145, "total_price": 145}})
+    return h
+
+
+@pytest.mark.parametrize("status,delivered", [("DELIVERED", True), ("DELIVRD", True), ("WAITING", False),
+                                              ("REJECTED", False), ("", False)])
+def test_eskiz_status(monkeypatch, status, delivered):
+    calls = eskiz(monkeypatch, status_handler(status))
+    r = sms.eskiz_status("abc")
+    assert r["ok"] and r["delivered"] is delivered and r["price"] == 145
+    assert calls[-1].url.path == "/api/message/sms/status_by_id/abc"
+
+
+def test_eskiz_status_not_found_and_errors(monkeypatch):
+    eskiz(monkeypatch, status_handler(code=404))
+    assert sms.eskiz_status("nope") == {"ok": False, "status": None, "delivered": False, "error": "sms not found"}
+    assert sms.eskiz_status("")["error"] == "no sms id"
+
+
+def test_eskiz_status_cli(monkeypatch, capsys):
+    eskiz(monkeypatch, status_handler())
+    assert sms.main(["--status", "abc"]) == 0
+    assert '"delivered": true' in capsys.readouterr().out

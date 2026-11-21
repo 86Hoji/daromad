@@ -13,6 +13,9 @@ SAFE_ENV = {
     "ESKIZ_TEST_MODE": "0",
     "EXTRAS_ADMIN_TOKEN": "",
     "PUBLIC_BASE_URL": "http://localhost:8001",
+    "DEMO_DEBTOR_PHONE": "",
+    "SMS_ALLOWLIST": "",
+    "SMS_ALLOW_ANY": "",
 }
 
 

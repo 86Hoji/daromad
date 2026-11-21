@@ -239,3 +239,32 @@ def test_due_date_null_means_no_deadline():
     assert not eval_ai.score_case(case(exp, validate=False), bad, TODAY)["ok"]
     # без validate=False основной pipeline такой платёж не примет — это и проверяется
     assert "validate_event" in " ".join(eval_ai.score_case(case(exp), ok, TODAY)["errors"])
+
+
+def test_main_ai_with_own_chain_called_once(monkeypatch):
+    """Новый ai.py (FALLBACK_MODELS) сам перебирает модели — eval не должен делать это поверх."""
+    import ai
+    import config
+    calls = []
+
+    async def chain(**kw):
+        calls.append(config.GEMINI_MODEL)
+        return {"intent": "record", "events": [], "transcript": "ok"}
+    monkeypatch.setattr(ai, "FALLBACK_MODELS", ("m2", "m3"), raising=False)
+    monkeypatch.setattr(ai, "parse_input", chain)
+    monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
+    assert asyncio.run(eval_ai._main_ai(["primary", "lite"], text="x"))["transcript"] == "ok"
+    assert calls == ["primary"]
+
+
+def test_main_ai_own_chain_failure_is_error(monkeypatch):
+    import ai
+    import config
+
+    async def down(**kw):
+        raise ai.AIUnavailable("band")
+    monkeypatch.setattr(ai, "FALLBACK_MODELS", ("m2",), raising=False)
+    monkeypatch.setattr(ai, "parse_input", down)
+    monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
+    with pytest.raises(RuntimeError, match="main ai chain failed: band"):
+        asyncio.run(eval_ai._main_ai(["primary"], text="x"))

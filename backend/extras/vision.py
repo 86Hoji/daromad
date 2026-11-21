@@ -28,6 +28,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from . import clock
+
 log = logging.getLogger("extras.vision")
 
 EXTRAS_DIR = Path(__file__).resolve().parent
@@ -303,7 +305,7 @@ def detect_mime(image_bytes: bytes, filename: str | None = None) -> str | None:
 
 async def aparse_photo(image_bytes: bytes, mime: str | None = None, today: date | None = None) -> dict:
     """Фото -> {"intent","events","transcript"}. Никогда не бросает исключений."""
-    today = today or date.today()
+    today = today or clock.today()              # «сегодня» по Ташкенту, а не по UTC сервера
     if not image_bytes:
         return error_result("bo'sh fayl")
     if len(image_bytes) > MAX_IMAGE_BYTES:
@@ -372,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Файл не найден: {path}", file=sys.stderr)
         return 2
     try:
-        today = date.fromisoformat(args.today) if args.today else date.today()
+        today = date.fromisoformat(args.today) if args.today else clock.today()
     except ValueError:
         print(f"Неверная дата --today: {args.today}", file=sys.stderr)
         return 2

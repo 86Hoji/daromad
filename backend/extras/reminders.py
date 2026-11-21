@@ -2,7 +2,8 @@
 
     preview_reminder(debt_id) -> {sms_text, pay_url, phone, can_send, reason, next_allowed_at}   # ничего не шлёт
     send_reminder(debt_id)    -> {status, sms_text, pay_url, sent_at, ...}                       # проверки -> SMS
-    router                    -> FastAPI APIRouter: POST /api/debts/{id}/remind/preview, POST /api/debts/{id}/remind
+    reminder_status(debt_id)  -> {sent_at, provider, sms_id, delivery, delivered, paid}         # для Mini App
+    router                    -> FastAPI APIRouter: POST .../remind/preview, POST .../remind, GET .../remind/status
 
 Ссылка: preview создаёт токен-черновик (sent_at = null) и показывает настоящую ссылку; remind берёт
 этот же токен, отправляет SMS и ставит sent_at. Частота «не чаще раза в 3 дня» считается только по
@@ -16,6 +17,8 @@
     too_soon      — SMS по этому долгу уже уходило меньше 3 дней назад
     sms_failed    — провайдер не отправил SMS (можно сразу повторить)
     link_too_long — PUBLIC_BASE_URL слишком длинный: ссылка не влезает в одно SMS (ошибка настройки)
+    link_not_public — настоящее SMS (Eskiz без тестового режима), а PUBLIC_BASE_URL = localhost:
+                      должник не откроет ссылку (ошибка настройки)
 """
 from __future__ import annotations
 
@@ -77,6 +80,12 @@ def _text(debt: dict, url: str) -> str:
                                    debt["remaining"], url)
 
 
+def _link_problem() -> str | None:
+    """Ссылка дойдёт до должника, только если SMS настоящее; тогда адрес должен быть публичным."""
+    real_sms = sms.provider() == "eskiz" and not sms.eskiz_test_mode()
+    return "link_not_public" if real_sms and not payments.base_url_is_public() else None
+
+
 def _fits(debt: dict) -> bool:
     """Влезает ли ссылка такой длины в одно SMS (проверка до создания токена)."""
     try:
@@ -93,7 +102,7 @@ def preview_reminder(debt_id: int, now: datetime | None = None) -> dict:
         debt = adapters.get_debt(debt_id)
         if debt is None:
             raise ExtrasError("not_found", "debt not found")
-        reason = _check(debt, now)
+        reason = _check(debt, now) or _link_problem()
         if reason is None and not _fits(debt):
             reason = "link_too_long"
         text = url = None
@@ -110,9 +119,9 @@ def send_reminder(debt_id: int, now: datetime | None = None) -> dict:
     now = now or payments._now()
     with payments._lock:                       # две быстрые кнопки подряд не дадут два SMS
         debt = adapters.get_debt(debt_id)
-        reason = _check(debt, now)
+        reason = _check(debt, now) or _link_problem()
         if reason:
-            raise ExtrasError(reason)
+            raise ExtrasError(reason, "PUBLIC_BASE_URL must be public https" if reason == "link_not_public" else "")
         if not _fits(debt):
             raise ExtrasError("link_too_long", "PUBLIC_BASE_URL is too long for one SMS")
         token = payments.draft_token(debt_id, now)
@@ -131,12 +140,32 @@ def send_reminder(debt_id: int, now: datetime | None = None) -> dict:
                            {"debt_id": debt_id, "error": result.get("error")})
         raise ExtrasError("sms_failed", str(result.get("error") or "sms not sent"))
 
+    payments.set_sms(token, result.get("provider"), result.get("id"))
     adapters.add_audit(debt["shop_id"], "owner", "debt_reminder_sent",
                        {"debt_id": debt_id, "provider": result.get("provider"), "sms_id": result.get("id")})
     return {"status": "sent", "sms_text": text, "pay_url": url, "sent_at": payments._fmt(now),
             "debt_id": debt_id, "phone": mask_phone(debt["phone"]), "provider": result.get("provider"),
             "sms_test_mode": bool(result.get("test_mode")),   # Eskiz без договора: ушёл «Bu Eskiz dan test»
             "expires_at": payments._fmt(now + payments.TOKEN_TTL)}
+
+
+def reminder_status(debt_id: int) -> dict:
+    """Последнее отправленное напоминание по долгу и доставлено ли оно (Eskiz) — для Mini App."""
+    if adapters.get_debt(debt_id) is None:
+        raise ExtrasError("not_found", "debt not found")
+    sent = [t for t in payments.tokens_for_debt(debt_id) if t.get("sent_at")]
+    if not sent:
+        raise ExtrasError("not_found", "no reminder sent yet")
+    last = max(sent, key=lambda t: t["sent_at"])
+    out = {"debt_id": debt_id, "sent_at": last["sent_at"], "provider": last.get("sms_provider"),
+           "sms_id": last.get("sms_id"), "paid": last.get("paid_at") is not None}
+    if last.get("sms_provider") == "eskiz" and last.get("sms_id"):
+        st = sms.eskiz_status(last["sms_id"])
+        out.update(delivery=st.get("status"), delivered=st.get("delivered", False))
+    else:
+        out.update(delivery="mock" if last.get("sms_provider") == "mock" else None,
+                   delivered=last.get("sms_provider") == "mock")
+    return out
 
 
 # --- FastAPI router (в основном бэке: app.include_router(reminders.router, dependencies=[...])) ----
@@ -148,6 +177,14 @@ router = APIRouter(prefix="/api", tags=["reminders"])
 def remind_preview(debt_id: int):
     try:
         return preview_reminder(debt_id)
+    except ExtrasError as exc:
+        return error_response(exc)
+
+
+@router.get("/debts/{debt_id}/remind/status")
+def remind_status(debt_id: int):
+    try:
+        return reminder_status(debt_id)
     except ExtrasError as exc:
         return error_response(exc)
 

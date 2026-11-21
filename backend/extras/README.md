@@ -49,7 +49,16 @@ Windows: `py -3.12 -m venv extras\.venv`, дальше `extras\.venv\Scripts\pyt
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD` | вход в кабинет Eskiz (notify.eskiz.uz) |
 | `ESKIZ_FROM` | имя отправителя, по умолчанию `4546` |
 | `ESKIZ_TEST_MODE` | `1` — тестовый аккаунт Eskiz: уходит «Bu Eskiz dan test», владелец в Mini App видит настоящий текст; `0` — после договора с Eskiz |
+| `DEMO_DEBTOR_PHONE` | свой или командный номер: им становится телефон демо-должника Alisher; на него разрешены настоящие SMS |
+| `SMS_ALLOWLIST` | ещё номера через запятую, на которые разрешены настоящие SMS |
+| `SMS_ALLOW_ANY` | `0` — при `SMS_PROVIDER=eskiz` SMS на номер не из двух строк выше **не уходит** (`sms_failed`, без списания); `1` — только в боевом режиме с реальными должниками |
 | `EXTRAS_ADMIN_TOKEN` | пусто — локально; на публичном адресе — длинная случайная строка, тогда маршруты владельца и `/api/dev/*` требуют заголовок `X-Admin-Token` |
+
+**Перед демо с настоящими SMS:** `SMS_PROVIDER=eskiz`, `ESKIZ_TEST_MODE=1`, свой номер в
+`DEMO_DEBTOR_PHONE`. Одно SMS стоит 145 сум (видно в статусе Eskiz) — 5 000 сум хватит примерно на 34 SMS.
+
+**Время.** Все отметки времени и «сегодня» — по Ташкенту (UTC+5) независимо от часового пояса сервера
+(`extras/clock.py`).
 
 **Лимит Gemini.** На бесплатном уровне у модели около 20 запросов в день на проект
 (21.11.2026 после ~20 запросов пришёл `429 RESOURCE_EXHAUSTED`). Для демо — платный уровень
@@ -65,16 +74,21 @@ Windows: `py -3.12 -m venv extras\.venv`, дальше `extras\.venv\Scripts\pyt
 extras/.venv/bin/uvicorn extras.dev_app:app --port 8001
 ```
 
+Одним процессом, без `--workers`: демо-долги живут в памяти. При каждом запуске демо-долги и ссылки
+(`tokens.json`) начинаются заново — после перезапуска Alisher снова «открыт» и напомнить можно сразу.
+
 | Метод | Путь | Что делает |
 |---|---|---|
 | POST | `/api/debts/{id}/remind/preview` | `sms_text`, `pay_url`, замаскированный `phone`, `can_send`, `reason`; SMS не шлёт |
 | POST | `/api/debts/{id}/remind` | отправить; ответ: `status`, `sms_text`, `pay_url`, `sent_at`, `expires_at`, `sms_test_mode` |
+| GET | `/api/debts/{id}/remind/status` | последнее напоминание: `sent_at`, `delivery` (`DELIVERED`…), `delivered`, `paid` |
 | GET | `/api/pay/{token}` | данные для страницы оплаты (без телефона должника) |
 | POST | `/api/pay/{token}/confirm` | оплатить остаток; повтор возвращает `already_paid: true` и не списывает |
 | GET | `/api/dev/debts` | демо: долги и уведомления владельцу |
 | POST | `/api/dev/reset` | демо: вернуть данные к исходным |
 
 Preview создаёт ссылку-черновик и показывает настоящий `pay_url`; remind отправляет **ту же** ссылку.
+Оплатить черновик нельзя (`not_found`), пока SMS с ним не ушло.
 Правило «не чаще раза в 3 дня» считает только отправленные SMS: preview и неудачная отправка его не трогают.
 
 Ошибки приходят как `{"error": code, "detail": ...}`:
@@ -89,6 +103,7 @@ Preview создаёт ссылку-черновик и показывает н�
 | `token_expired` | 410 | ссылке больше 7 дней и она не оплачена |
 | `sms_failed` | 502 | провайдер не отправил SMS; попытка не считается, можно повторить сразу |
 | `link_too_long` | 500 | `PUBLIC_BASE_URL` такой длинный, что ссылка не влезает в одно SMS; долг не блокируется |
+| `link_not_public` | 500 | настоящее SMS (Eskiz без тестового режима), а `PUBLIC_BASE_URL` — localhost: должник не откроет ссылку |
 | `unauthorized` | 401 | задан `EXTRAS_ADMIN_TOKEN`, а заголовка `X-Admin-Token` нет или он неверный |
 
 > Страница и API оплаты открыты всем — их открывает должник по ссылке. Маршруты владельца и
@@ -143,6 +158,12 @@ extras/.venv/bin/python -m extras.sms --to 998XXXXXXXXX --text "Salom"
 ```
 
 Отправляет в текущем режиме `SMS_PROVIDER` (в Eskiz это списывает баланс).
+
+```bash
+extras/.venv/bin/python -m extras.sms --status ID
+```
+
+Доставлено ли SMS (id — из ответа отправки), без списания.
 
 **Фото:**
 

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import copy
 import logging
-from datetime import datetime
+import os
+from pathlib import Path
+from . import clock
 
 log = logging.getLogger("extras.adapters")
 
@@ -34,7 +36,23 @@ notifications: list[dict] = []   # что ушло бы владельцу в б
 
 
 def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return clock.stamp()                        # время Ташкента, не сервера
+
+
+IN_MEMORY = True     # заглушка: данные живут в памяти и сбрасываются при перезапуске (с db.py станет False)
+
+
+def _demo_phone() -> str | None:
+    """Номер демо-должника (Alisher) из extras/.env: свой/командный, чтобы демо-SMS не ушло незнакомцу."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent / ".env")
+    except ImportError:
+        pass
+    digits = "".join(ch for ch in os.getenv("DEMO_DEBTOR_PHONE", "") if ch.isdigit())
+    if len(digits) == 9:
+        digits = "998" + digits
+    return digits if len(digits) == 12 and digits.startswith("998") else None
 
 
 def reset() -> None:
@@ -43,6 +61,9 @@ def reset() -> None:
     _shops.update(copy.deepcopy(_SEED_SHOPS))
     _debts.clear()
     _debts.update(copy.deepcopy(_SEED_DEBTS))
+    phone = _demo_phone()
+    if phone:
+        _debts[1]["phone"] = phone
     payments.clear()
     audit_log.clear()
     notifications.clear()

@@ -16,7 +16,6 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 log = logging.getLogger("extras.sms")
@@ -146,17 +145,45 @@ def provider() -> str:
 
 
 def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    from . import clock
+    return clock.stamp()
+
+
+_TRUE = ("1", "true", "yes", "on")
+
+
+def allowed_numbers() -> set[str]:
+    """Номера из DEMO_DEBTOR_PHONE и SMS_ALLOWLIST (через запятую); неверные пропускаются."""
+    out = set()
+    for raw in f"{_env('DEMO_DEBTOR_PHONE')},{_env('SMS_ALLOWLIST')}".split(","):
+        try:
+            out.add(normalize_phone(raw))
+        except ValueError:
+            continue
+    return out
+
+
+def number_allowed(number: str) -> bool:
+    """Защита от SMS незнакомцам: настоящая отправка — только на разрешённые номера,
+    пока явно не включено SMS_ALLOW_ANY=1 (боевой режим с реальными должниками)."""
+    return _env("SMS_ALLOW_ANY").lower() in _TRUE or number in allowed_numbers()
 
 
 def send_sms(phone, text: str) -> dict:
-    """Отправить SMS. Неверный номер или пустой текст -> ValueError (ничего не отправляется)."""
+    """Отправить SMS. Неверный номер или пустой текст -> ValueError (ничего не отправляется).
+
+    В режиме eskiz номер вне DEMO_DEBTOR_PHONE / SMS_ALLOWLIST (и без SMS_ALLOW_ANY=1) не отправляется:
+    {"status": "failed", "error": "number not allowed ..."} — без обращения к Eskiz и без списания."""
     number = normalize_phone(phone)
     text = (text or "").strip()
     if not text:
         raise ValueError("empty sms text")
     mode = provider()
     if mode == "eskiz":
+        if not number_allowed(number):
+            log.warning("SMS to %s***%s blocked: not in DEMO_DEBTOR_PHONE/SMS_ALLOWLIST", number[:5], number[-2:])
+            return {"status": "failed", "provider": "eskiz", "id": None,
+                    "error": "number not allowed: add it to SMS_ALLOWLIST or set SMS_ALLOW_ANY=1"}
         return _send_eskiz(number, text)
     return _send_mock(number, text)
 
@@ -202,7 +229,7 @@ def _eskiz_login(client) -> str:
 
 
 def eskiz_test_mode() -> bool:
-    return _env("ESKIZ_TEST_MODE", "0").lower() in ("1", "true", "yes", "on")
+    return _env("ESKIZ_TEST_MODE", "0").lower() in _TRUE
 
 
 def _send_eskiz(number: str, text: str) -> dict:
@@ -233,6 +260,37 @@ def _send_eskiz(number: str, text: str) -> dict:
     return {"status": "failed", "provider": "eskiz", "id": None, "error": "unauthorized"}
 
 
+DELIVERED = ("DELIVERED", "DELIVRD")
+
+
+def eskiz_status(sms_id: str) -> dict:
+    """Статус доставки в Eskiz (проверено на настоящем SMS: GET /message/sms/status_by_id/{id},
+    data.status = "DELIVERED" и т.п.). -> {"ok", "status", "delivered", "price"}; ошибки не бросаются."""
+    global _eskiz_token
+    if not sms_id:
+        return {"ok": False, "status": None, "delivered": False, "error": "no sms id"}
+    try:
+        with _http_client() as client:
+            for attempt in (1, 2):
+                if not _eskiz_token:
+                    _eskiz_token = _eskiz_login(client)
+                r = client.get(f"/message/sms/status_by_id/{sms_id}",
+                               headers={"Authorization": f"Bearer {_eskiz_token}"})
+                if r.status_code == 401 and attempt == 1:
+                    _eskiz_token = None
+                    continue
+                if r.status_code == 404:
+                    return {"ok": False, "status": None, "delivered": False, "error": "sms not found"}
+                r.raise_for_status()
+                data = r.json().get("data") or {}
+                status = str(data.get("status") or "").upper() or None
+                return {"ok": True, "status": status, "delivered": status in DELIVERED,
+                        "price": data.get("total_price", data.get("price"))}
+    except Exception as exc:
+        return {"ok": False, "status": None, "delivered": False, "error": str(exc)[:200]}
+    return {"ok": False, "status": None, "delivered": False, "error": "unauthorized"}
+
+
 def eskiz_check() -> dict:
     """Проверить логин в Eskiz без отправки SMS."""
     global _eskiz_token
@@ -248,13 +306,19 @@ def eskiz_check() -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     """python -m extras.sms --check                         # логин в Eskiz
-       python -m extras.sms --to 998901234567 --text "..."   # отправка в текущем режиме SMS_PROVIDER"""
+       python -m extras.sms --to 998901234567 --text "..."   # отправка в текущем режиме SMS_PROVIDER
+       python -m extras.sms --status <id>                    # доставлено ли (Eskiz)"""
     import argparse
     ap = argparse.ArgumentParser(prog="python -m extras.sms")
     ap.add_argument("--check", action="store_true", help="проверить логин Eskiz")
     ap.add_argument("--to", help="номер получателя")
     ap.add_argument("--text", help="текст SMS")
+    ap.add_argument("--status", metavar="ID", help="статус доставки SMS в Eskiz по id из ответа отправки")
     args = ap.parse_args(argv)
+    if args.status:
+        r = eskiz_status(args.status)
+        print(json.dumps(r, ensure_ascii=False))
+        return 0 if r["ok"] else 1
     if args.check:
         r = eskiz_check()
         print("Eskiz login: OK" if r["ok"] else f"Eskiz login: ERROR {r['error']}")

@@ -25,7 +25,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from . import adapters
+from . import adapters, clock
 
 EXTRAS_DIR = Path(__file__).resolve().parent
 TOKENS_PATH = EXTRAS_DIR / "tokens.json"
@@ -40,7 +40,8 @@ class ExtrasError(Exception):
     """Ошибка с кодом для API: код уходит клиенту, HTTP-статус берётся из STATUS."""
 
     STATUS = {"not_found": 404, "token_expired": 410, "debt_closed": 409, "no_phone": 422,
-              "no_consent": 403, "too_soon": 429, "sms_failed": 502, "link_too_long": 500, "unauthorized": 401}
+              "no_consent": 403, "too_soon": 429, "sms_failed": 502, "link_too_long": 500, "unauthorized": 401,
+              "link_not_public": 500}
 
     def __init__(self, code: str, detail: str = ""):
         super().__init__(code)
@@ -55,7 +56,7 @@ def error_response(exc: ExtrasError) -> JSONResponse:
 
 
 def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
+    return clock.now()                          # время Ташкента, не сервера (на Railway — UTC)
 
 
 def _fmt(dt: datetime) -> str:
@@ -77,6 +78,14 @@ def public_base_url() -> str:
 
 def pay_url(token: str) -> str:
     return f"{public_base_url()}/pay/{token}"
+
+
+def base_url_is_public() -> bool:
+    """False для localhost / 127.x / 0.0.0.0 / ::1 / *.local — такую ссылку телефон должника не откроет."""
+    from urllib.parse import urlparse
+    host = (urlparse(public_base_url()).hostname or "").lower()
+    return bool(host) and not (host in ("localhost", "0.0.0.0", "::1") or host.startswith("127.")
+                               or host.endswith(".local") or host.endswith(".localhost"))
 
 
 # --- хранилище токенов ---------------------------------------------------------------
@@ -133,6 +142,15 @@ def mark_sent(token: str, now: datetime) -> None:
         _save_tokens(tokens)
 
 
+def set_sms(token: str, provider: str | None, sms_id: str | None) -> None:
+    """Запомнить, каким провайдером и с каким id ушло SMS со ссылкой (для статуса доставки)."""
+    with _lock:
+        tokens = load_tokens()
+        if token in tokens:
+            tokens[token].update(sms_provider=provider, sms_id=sms_id)
+            _save_tokens(tokens)
+
+
 def unmark_sent(token: str) -> None:
     """SMS не ушло: снова черновик (попытка не считается за «раз в 3 дня»)."""
     with _lock:
@@ -152,6 +170,8 @@ def _get_valid(token: str, now: datetime) -> tuple[dict, dict]:
     rec = load_tokens().get(token or "")
     if not isinstance(rec, dict) or not {"debt_id", "expires_at"} <= rec.keys():
         raise ExtrasError("not_found", "link not found")
+    if "sent_at" in rec and rec["sent_at"] is None:     # черновик из preview: SMS ещё не уходило
+        raise ExtrasError("not_found", "link not sent yet")
     debt = adapters.get_debt(rec["debt_id"])
     if debt is None:
         raise ExtrasError("not_found", "debt not found")

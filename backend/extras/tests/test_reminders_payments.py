@@ -412,9 +412,10 @@ def test_env_example_has_no_secrets():
     from pathlib import Path
     text = (Path(payments.__file__).parent / ".env.example").read_text(encoding="utf-8")
     values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line and not line.startswith("#"))
-    for key in ("GEMINI_API_KEY", "ESKIZ_EMAIL", "ESKIZ_PASSWORD", "EXTRAS_ADMIN_TOKEN"):
+    for key in ("GEMINI_API_KEY", "ESKIZ_EMAIL", "ESKIZ_PASSWORD", "EXTRAS_ADMIN_TOKEN",
+                "DEMO_DEBTOR_PHONE", "SMS_ALLOWLIST"):                    # и личных номеров
         assert values.get(key, "") == "", f"{key} must be empty in .env.example"
-    assert values["SMS_PROVIDER"] == "mock"
+    assert values["SMS_PROVIDER"] == "mock" and values["SMS_ALLOW_ANY"] == "0"
 
 
 
@@ -444,3 +445,90 @@ def test_routers_work_when_included_in_plain_app(capsys):
         assert res.status_code == status and res.json()["error"] == code, path
     res = c.get("/api/pay/nope")
     assert res.status_code == 404 and res.json()["error"] == "not_found"
+
+
+# --- перезапуск сервера в демо-режиме ----------------------------------------------------
+
+def test_restart_resets_links_with_in_memory_debts():
+    with TestClient(dev_app.app) as c:                      # запуск 1: напомнили и оплатили
+        tok = token_from(c.post(f"/api/debts/{ALISHER}/remind").json()["pay_url"])
+        c.post(f"/api/pay/{tok}/confirm")
+    adapters.reset()                                        # так выглядит процесс после рестарта
+    with TestClient(dev_app.app) as c:                      # запуск 2 (lifespan)
+        assert payments.load_tokens() == {}
+        assert c.get(f"/api/pay/{tok}").json()["error"] == "not_found"
+        assert c.post(f"/api/debts/{ALISHER}/remind").json()["status"] == "sent"   # не too_soon
+
+
+def test_restart_keeps_links_with_real_db(monkeypatch):
+    monkeypatch.setattr(adapters, "IN_MEMORY", False)
+    tok = payments.create_token(ALISHER, T0)
+    with TestClient(dev_app.app):
+        assert tok in payments.load_tokens()
+
+
+# --- ссылка на localhost не уходит должнику настоящим SMS ---------------------------------
+
+@pytest.mark.parametrize("url,public", [("http://localhost:8001", False), ("http://127.0.0.1:8001", False),
+                                        ("http://0.0.0.0:8001", False), ("http://mac.local:8001", False),
+                                        ("https://daromad.up.railway.app", True),
+                                        ("https://abc-def.trycloudflare.com", True)])
+def test_base_url_is_public(monkeypatch, url, public):
+    monkeypatch.setenv("PUBLIC_BASE_URL", url)
+    assert payments.base_url_is_public() is public
+
+
+def test_real_eskiz_with_localhost_link_is_refused(monkeypatch):
+    sent = []
+    monkeypatch.setenv("SMS_PROVIDER", "eskiz")
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "0")
+    monkeypatch.setattr(sms, "_send_eskiz", lambda n, t: sent.append(t) or {"status": "sent", "provider": "eskiz"})
+    monkeypatch.setenv("SMS_ALLOW_ANY", "1")
+    p = reminders.preview_reminder(ALISHER, now=T0)
+    assert p["can_send"] is False and p["reason"] == "link_not_public"
+    assert code_of(reminders.send_reminder, ALISHER, now=T0) == "link_not_public" and sent == []
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "1")                  # тестовый Eskiz: ссылка не уходит — можно
+    assert reminders.send_reminder(ALISHER, now=T0)["status"] == "sent"
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "0")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://daromad.up.railway.app")
+    assert reminders.send_reminder(_with_consent(NIGORA), now=T0)["status"] == "sent"
+
+
+def _with_consent(debt_id):
+    adapters._debts[debt_id]["sms_consent"] = True
+    return debt_id
+
+
+# --- статус доставки напоминания ---------------------------------------------------------
+
+def test_reminder_status_mock_and_paid(client):
+    assert client.get(f"/api/debts/{ALISHER}/remind/status").json()["error"] == "not_found"
+    r = client.post(f"/api/debts/{ALISHER}/remind").json()
+    st = client.get(f"/api/debts/{ALISHER}/remind/status").json()
+    assert st["provider"] == "mock" and st["delivered"] is True and st["paid"] is False and st["sent_at"] == r["sent_at"]
+    client.post(f"/api/pay/{token_from(r['pay_url'])}/confirm")
+    assert client.get(f"/api/debts/{ALISHER}/remind/status").json()["paid"] is True
+    assert client.get("/api/debts/999/remind/status").status_code == 404
+
+
+def test_reminder_status_eskiz(monkeypatch):
+    monkeypatch.setattr(sms, "send_sms", lambda p, t: {"status": "sent", "provider": "eskiz", "id": "req-1"})
+    monkeypatch.setattr(sms, "eskiz_status", lambda i: {"ok": True, "status": "DELIVERED", "delivered": i == "req-1"})
+    reminders.send_reminder(ALISHER, now=T0)
+    st = reminders.reminder_status(ALISHER)
+    assert st["sms_id"] == "req-1" and st["delivery"] == "DELIVERED" and st["delivered"] is True
+
+
+def test_status_route_is_owner_only(client, monkeypatch):
+    monkeypatch.setenv("EXTRAS_ADMIN_TOKEN", "k")
+    assert client.get(f"/api/debts/{ALISHER}/remind/status").status_code == 401
+
+
+def test_draft_link_is_not_payable_until_sent(client):
+    p = client.post(f"/api/debts/{ALISHER}/remind/preview").json()
+    tok = token_from(p["pay_url"])
+    assert client.get(f"/api/pay/{tok}").status_code == 404
+    assert client.post(f"/api/pay/{tok}/confirm").status_code == 404
+    assert adapters.get_debt(ALISHER)["remaining"] == 450_000
+    client.post(f"/api/debts/{ALISHER}/remind")
+    assert client.get(f"/api/pay/{tok}").json()["status"] == "open"
