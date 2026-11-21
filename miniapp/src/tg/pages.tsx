@@ -1,4 +1,5 @@
 // Экраны Mini App: Bosh, Qarzlar (+ карточка должника с BackButton), Hisobot.
+import { BRAND } from "../lib/brand";
 import { BellRing, ChevronLeft, Phone } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,7 +22,7 @@ function Header({ title }: { title?: string }) {
   const { summary, updatedAt, error } = useLive();
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
-      <h1 className="truncate text-[17px] font-semibold">{title ?? summary?.shop.name ?? "Daromad"}</h1>
+      <h1 className="truncate text-[17px] font-semibold">{title ?? summary?.shop.name ?? BRAND}</h1>
       <LiveDot at={updatedAt} error={error} />
     </div>
   );

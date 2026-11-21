@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useMagnet } from "../lib/fx";
 
 type Variant = "primary" | "secondary" | "quiet" | "danger" | "light";
 type Size = "sm" | "md" | "lg";
@@ -27,19 +28,25 @@ export function Button({
   className = "",
   children,
   disabled,
+  magnetic = false,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
   icon?: ReactNode;
+  /** тянется к курсору (крупные CTA) */
+  magnetic?: boolean;
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useMagnet(ref, magnetic);
   return (
     <button
+      ref={ref}
       {...rest}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap transition-[background-color,transform,opacity] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 ${VARIANT[variant]} ${SIZE[size]} ${className}`}
+      className={`btn-fx inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap disabled:pointer-events-none disabled:opacity-45 ${VARIANT[variant]} ${SIZE[size]} ${className}`}
     >
       {loading ? <Loader2 className="animate-spin" size={size === "sm" ? 16 : 18} strokeWidth={2} /> : icon}
       {children}

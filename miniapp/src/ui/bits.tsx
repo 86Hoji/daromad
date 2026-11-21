@@ -1,4 +1,5 @@
 // Мелкие примитивы: чипы, сегменты, скелетоны, логотип, переключатель темы.
+import { BRAND } from "../lib/brand";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getThemePref, setThemePref, type ThemePref } from "../lib/telegram";
@@ -75,7 +76,7 @@ export function Logo({ className = "", size = 28, light = false }: { className?:
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <LogoMark size={size} />
-      <span className={`font-display text-[17px] font-semibold tracking-[-0.02em] ${light ? "text-white" : "text-ink"}`}>Daromad</span>
+      <span className={`font-display text-[17px] font-semibold tracking-[-0.02em] ${light ? "text-white" : "text-ink"}`}>{BRAND}</span>
     </span>
   );
 }

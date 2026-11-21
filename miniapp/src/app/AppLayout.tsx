@@ -1,9 +1,11 @@
 // Оболочка дашборда /app: сайдбар на ≥1280, верхняя навигация ниже; голосовой док снизу.
+import { BRAND } from "../lib/brand";
 import { BookText, Home, PieChart, Users } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { ReminderProvider } from "../features/Reminder";
 import { LiveProvider, useLive } from "../lib/live";
-import { AmbientBg } from "../ui/Ambient";
+import { useLenis, useSpotlight } from "../lib/fx";
+import { LiquidBg } from "../ui/Liquid";
 import { Chip, LiveDot, Logo, ThemeToggle } from "../ui/bits";
 import { VoiceDock } from "./VoiceDock";
 
@@ -18,7 +20,7 @@ function Sidebar() {
   const { summary, updatedAt, error } = useLive();
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col px-5 py-6 xl:flex">
-      <NavLink to="/" className="rounded-el px-2 py-1" aria-label="Daromad — bosh sahifa">
+      <NavLink to="/" className="rounded-el px-2 py-1" aria-label={`${BRAND} — bosh sahifa`}>
         <Logo />
       </NavLink>
 
@@ -65,7 +67,7 @@ function TopNav() {
   return (
     <header className="sticky top-0 z-30 bg-bg/90 backdrop-blur xl:hidden">
       <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-4 pt-3 pb-2 sm:px-6">
-        <NavLink to="/" aria-label="Daromad — bosh sahifa" className="rounded-el">
+        <NavLink to="/" aria-label={`${BRAND} — bosh sahifa`} className="rounded-el">
           <Logo size={26} />
         </NavLink>
         <div className="flex items-center gap-1">
@@ -98,11 +100,13 @@ function TopNav() {
 }
 
 export function AppLayout() {
+  useSpotlight();
+  useLenis();
   return (
     <LiveProvider>
       <ReminderProvider>
         <div className="min-h-dvh">
-          <AmbientBg variant="app" />
+          <LiquidBg speed={0.45} blur={90} />
           <Sidebar />
           <TopNav />
           {/* резерв снизу под голосовой док: контент никогда не уходит под него */}
