@@ -209,6 +209,21 @@ async def post_tts(body: TtsIn, shop: dict = Depends(current_shop)) -> Response:
     return Response(content=data, media_type=tts.audio_mime(data), headers={"Cache-Control": "private, max-age=3600"})
 
 
+@router.post("/demo/reset")
+def demo_reset(shop: dict = Depends(current_shop)) -> dict:
+    """Сброс демо-данных к сценарию «нехватка в четверг». Выключен, пока DEMO_RESET!=1; только демо-бизнес.
+    Привязка демо-бизнеса к Telegram-пользователю сохраняется (seed.wipe возвращает tg_user_id)."""
+    if not config.DEMO_RESET:
+        raise HTTPException(status_code=404, detail="Not Found")
+    if shop["id"] != config.DEV_SHOP_ID:
+        raise HTTPException(status_code=403, detail="Faqat demo biznes uchun")
+    import seed
+
+    seed.seed(reset=True, shop_id=config.DEV_SHOP_ID)
+    db.audit(config.DEV_SHOP_ID, "owner", "demo_reset", {})
+    return {"ok": True, "free_money": round(logic.free_money(config.DEV_SHOP_ID)["free_money"], -3)}
+
+
 @router.post("/voice")
 async def post_voice(audio: UploadFile = File(...), shop: dict = Depends(current_shop)) -> dict:
     data = await audio.read()

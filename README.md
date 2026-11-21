@@ -85,6 +85,7 @@ pip install -r backend\requirements.txt
 | `GEMINI_API_KEY` | ключ Google AI Studio |
 | `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`. Для новых ключей Google `*-latest` и `gemini-2.5-flash` недоступны — ставьте `gemini-3.8-flash`. Если модель не найдена (404) или перегружена (503/таймаут 25 с), код сам переходит по цепочке `gemini-3.8-flash` → `gemini-3.5-flash-lite`, а упавшую модель пропускает 5 минут |
 | `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | голосовые ответы: по умолчанию `gemini-3.8-flash-tts`, голос `Fola` |
+| `DEMO_RESET` | `1` — разрешает `POST /api/demo/reset` (Ctrl+Shift+R в `/app`), только для демо-бизнеса; по умолчанию `0` |
 | `VOICE_REPLIES` | `1` (по умолчанию) — на вопрос, заданный голосом, бот отвечает текстом и голосовым; `0` — только текст |
 | `WEBAPP_URL` | https-адрес Mini App **с путём `/tg`** (например `https://<проект>.vercel.app/tg`), даёт кнопку-меню «Hisobim»; можно оставить пустым |
 | `DEV_SHOP_ID` | бизнес для API без Telegram-заголовка (демо), по умолчанию `1` |
@@ -172,6 +173,27 @@ curl -X POST localhost:8000/api/offers/decline -H "Content-Type: application/jso
 овердрафт — `+сумма` сегодня и `−(сумма + проценты)` в день возврата; вклад — наоборот. Срок овердрафта считается **от сегодня**:
 первый день после платежа, начиная с которого прогноз уже не опускается ниже суммы возврата. Второй овердрафт, пока не погашен
 первый, — `409`. Каждое решение пишется в журнал (`offer_accepted` / `offer_declined`). Кнопки оффера в боте идут по тому же пути.
+
+## Деплой за 10 минут
+
+1. **Бэкенд + туннель** (на ноутбуке, где лежит `backend/.env`):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\start_demo.ps1
+   ```
+   Скрипт делает `seed --reset`, поднимает API на `:8000` (вместе с ботом), запускает `cloudflared tunnel` и крупно печатает
+   `VITE_API_URL=https://<random>.trycloudflare.com`. Окно не закрывайте — Ctrl+C останавливает всё.
+2. **Vercel** → Add New → Project → этот репозиторий → **Root Directory: `miniapp`** → Environment Variables:
+   `VITE_API_URL` = адрес из шага 1 (без `/` в конце), `VITE_BOT_URL` = `https://t.me/<ваш_бот>` → **Deploy**.
+   Адрес туннеля меняется при каждом запуске: обновите `VITE_API_URL` и сделайте **Redeploy**.
+3. **Бот → Mini App**: в `backend/.env` впишите `WEBAPP_URL=https://<проект>.vercel.app/tg` и перезапустите шаг 1.
+4. **BotFather** → `/mybots` → бот → Bot Settings → **Menu Button** → URL `https://<проект>.vercel.app/tg`, название `Hisobim`.
+5. **Проверка в Telegram**: `/start` → «🧪 Demo biznesni ulash» → кнопка «Hisobim» → открывается `/tg` с демо-бизнесом
+   (Mini App шлёт `X-Telegram-Init-Data`, бэкенд проверяет подпись токеном бота и находит привязанный бизнес).
+   В браузере: `https://<проект>.vercel.app/app` — дашборд демо-бизнеса без Telegram.
+
+Перед показом: `DEMO_RESET=1` в `backend/.env` → в `/app` **Ctrl+Shift+R** (или кнопка «Demo reset», видна в dev-режиме
+и по адресу `/app?reset`) возвращает демо к сценарию «нехватка в четверг». Работает только для демо-бизнеса `DEV_SHOP_ID`;
+привязка к Telegram при сбросе сохраняется. Сценарий показа — [docs/DEMO.md](docs/DEMO.md).
 
 ## Mini App (фаза 2)
 

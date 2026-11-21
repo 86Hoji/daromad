@@ -3,6 +3,10 @@ import { initData } from "./telegram";
 
 export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
 
+// Mini App на https не может ходить в http-API (mixed content) — подскажем в консоли
+if (typeof window !== "undefined" && window.location.protocol === "https:" && API_URL.startsWith("http:"))
+  console.warn(`[Flowcast] Sahifa https, API esa ${API_URL} — brauzer so'rovlarni bloklaydi. VITE_API_URL ni https qiling.`);
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -283,6 +287,7 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, res.statusText);
     return res.blob();
   },
+  demoReset: () => post<{ ok: boolean; free_money: number }>("/api/demo/reset"),
   confirm: (ids: number[]) => post<{ confirmed: unknown[]; errors: string[] }>("/api/entries/confirm", { ids }),
   reject: (ids: number[]) => post<{ rejected: number }>("/api/entries/reject", { ids }),
 

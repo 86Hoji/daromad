@@ -7,6 +7,7 @@ import { LiveProvider, useLive } from "../lib/live";
 import { useLenis, useSpotlight } from "../lib/fx";
 import { LiquidBg } from "../ui/Liquid";
 import { Chip, LiveDot, Logo, ThemeToggle } from "../ui/bits";
+import { DemoResetButton, DemoResetHotkey } from "./DemoReset";
 import { VoiceOverlay } from "./VoiceOverlay";
 
 const NAV = [
@@ -54,9 +55,12 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto flex items-center justify-between gap-2 px-1">
-        <LiveDot at={updatedAt} error={error} />
-        <ThemeToggle />
+      <div className="mt-auto px-1">
+        <DemoResetButton />
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <LiveDot at={updatedAt} error={error} />
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );
@@ -116,6 +120,7 @@ export function AppLayout() {
             </div>
           </main>
           <VoiceOverlay />
+          <DemoResetHotkey />
         </div>
       </ReminderProvider>
     </LiveProvider>
