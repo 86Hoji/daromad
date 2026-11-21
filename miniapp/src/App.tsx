@@ -5,6 +5,8 @@ import { AppLayout } from "./app/AppLayout";
 import { AppDebts, AppHome, AppJournal, AppReport } from "./app/pages";
 import { inTelegram } from "./lib/telegram";
 import { Pay } from "./screens/Pay";
+import { TgLayout } from "./tg/TgLayout";
+import { TgDebtDetail, TgDebts, TgHome, TgReport } from "./tg/pages";
 import { ToastHost } from "./ui/Toast";
 
 const Landing = lazy(() => import("./landing/Landing"));
@@ -32,8 +34,13 @@ export default function App() {
           <Route path="jurnal" element={<AppJournal />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
-        {/* /tg — шаг 3 */}
-        <Route path="/tg/*" element={<Navigate to="/app" replace />} />
+        <Route path="/tg" element={<TgLayout />}>
+          <Route index element={<TgHome />} />
+          <Route path="qarzlar" element={<TgDebts />} />
+          <Route path="qarzlar/:id" element={<TgDebtDetail />} />
+          <Route path="hisobot" element={<TgReport />} />
+          <Route path="*" element={<Navigate to="/tg" replace />} />
+        </Route>
         <Route path="/pay/:token" element={<Pay />} />
         <Route path="*" element={<Navigate to={inTelegram ? "/tg" : "/"} replace />} />
       </Routes>

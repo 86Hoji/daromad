@@ -31,7 +31,7 @@ function Legend({ compact }: { compact?: boolean }) {
 }
 
 export function ChartCard({ forecast, compact = false, height }: { forecast: Forecast | null; compact?: boolean; height?: number }) {
-  const h = height ?? (compact ? 220 : 380);
+  const h = height ?? (compact ? 244 : 380);
   const status = forecast ? chartStatus(forecast) : null;
   return (
     <section className={`panel ${compact ? "p-4 pb-2" : "p-6 pb-3 xl:p-7 xl:pb-4"}`} aria-labelledby="chart-title">

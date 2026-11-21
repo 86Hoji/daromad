@@ -1,7 +1,6 @@
 // «Pul chizig'i»: остаток по дням. Без сглаживания (stepAfter), прошлое — сплошная линия,
 // будущее — пунктир Lapis + полоса неопределённости (low/high), всё ниже нуля — Pomegranate.
 // События — «булавки» под осью X: крупнейшее подписано всегда, остальные — точки с тултипом.
-import { motion } from "motion/react";
 import { useMemo } from "react";
 import {
   Area,
@@ -107,7 +106,7 @@ export function MoneyLine({
   const yMax = ticks[ticks.length - 1];
 
   const MARGIN_TOP = compact ? 22 : 30;
-  const X_H = compact ? 46 : 60;
+  const X_H = compact ? 58 : 62;
   const plotTop = MARGIN_TOP;
   const plotBottom = height - X_H;
   const zeroY = plotTop + ((yMax - 0) / (yMax - yMin || 1)) * (plotBottom - plotTop);
@@ -144,15 +143,7 @@ export function MoneyLine({
   const off = Math.min(1, Math.max(0, (zeroY - plotTop) / (plotBottom - plotTop || 1)));
 
   return (
-    <motion.div
-      role="img"
-      aria-label={summary}
-      className={`w-full select-none ${className}`}
-      style={{ height }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div role="img" aria-label={summary} className={`w-full select-none ${className}`} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={points} margin={{ top: MARGIN_TOP, right: compact ? 8 : 16, bottom: 0, left: 0 }}>
           <defs>
@@ -231,7 +222,7 @@ export function MoneyLine({
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: pal.ink3, strokeOpacity: 0.4, strokeDasharray: "2 3" }} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
-    </motion.div>
+    </div>
   );
 }
 
