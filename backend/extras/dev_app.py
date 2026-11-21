@@ -51,27 +51,12 @@ def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
 
 @app.exception_handler(ExtrasError)
 async def _extras_error(_: Request, exc: ExtrasError) -> JSONResponse:
-    return JSONResponse({"error": exc.code, "detail": exc.detail}, status_code=exc.http_status)
+    return payments.error_response(exc)
 
 
-@app.post("/api/debts/{debt_id}/remind/preview", dependencies=[Depends(require_admin)])
-def remind_preview(debt_id: int) -> dict:
-    return reminders.preview_reminder(debt_id)
-
-
-@app.post("/api/debts/{debt_id}/remind", dependencies=[Depends(require_admin)])
-def remind(debt_id: int) -> dict:
-    return reminders.send_reminder(debt_id)
-
-
-@app.get("/api/pay/{token}")
-def pay_info(token: str) -> dict:
-    return payments.get_payment(token)
-
-
-@app.post("/api/pay/{token}/confirm")
-def pay_confirm(token: str) -> dict:
-    return payments.confirm_payment(token)
+# Так же подключается в основном main.py (там вместо require_admin — авторизация магазина).
+app.include_router(reminders.router, dependencies=[Depends(require_admin)])
+app.include_router(payments.router)
 
 
 @app.get("/api/dev/debts", dependencies=[Depends(require_admin)])

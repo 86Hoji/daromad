@@ -37,35 +37,67 @@ def token_from(url: str) -> str:
 
 # --- preview ----------------------------------------------------------------------------
 
-def test_preview_ok_does_not_send_or_create_token():
+def test_preview_returns_text_and_link_without_sending():
     p = reminders.preview_reminder(ALISHER, now=T0)
     assert p["can_send"] is True and p["reason"] is None
-    assert "450 000 so'm" in p["text"] and len(p["text"]) <= 160
+    assert "450 000 so'm" in p["sms_text"] and len(p["sms_text"]) <= 160
+    assert p["pay_url"].startswith("http://localhost:8001/pay/") and p["pay_url"] in p["sms_text"]
     assert p["phone"].endswith("67") and "1234" not in p["phone"]
-    assert sms.read_outbox() == [] and payments.load_tokens() == {}
+    assert sms.read_outbox() == []
+    rec = payments.load_tokens()[token_from(p["pay_url"])]
+    assert rec["sent_at"] is None                                       # черновик, не «отправлено»
+
+
+def test_preview_twice_same_link_and_remind_sends_it():
+    p1 = reminders.preview_reminder(ALISHER, now=T0)
+    p2 = reminders.preview_reminder(ALISHER, now=T0 + timedelta(minutes=5))
+    r = reminders.send_reminder(ALISHER, now=T0 + timedelta(minutes=6))
+    assert p1["pay_url"] == p2["pay_url"] == r["pay_url"] and p1["sms_text"] == r["sms_text"]
+    assert len(payments.load_tokens()) == 1 and r["sent_at"] == "2026-11-21 10:06:00"
+
+
+def test_preview_does_not_count_as_reminder():
+    for i in range(3):
+        reminders.preview_reminder(ALISHER, now=T0 + timedelta(hours=i))
+    assert reminders.send_reminder(ALISHER, now=T0 + timedelta(hours=3))["status"] == "sent"
+
+
+def test_expired_draft_is_replaced():
+    old = reminders.preview_reminder(ALISHER, now=T0)["pay_url"]
+    new = reminders.preview_reminder(ALISHER, now=T0 + timedelta(days=8))["pay_url"]
+    assert old != new
+
+
+def test_legacy_token_without_sent_at_counts_as_sent():
+    payments.TOKENS_PATH.write_text(json.dumps({"legacy": {
+        "debt_id": ALISHER, "created_at": "2026-11-20 10:00:00", "expires_at": "2026-11-27 10:00:00",
+        "paid_at": None, "paid_amount": None}}), encoding="utf-8")
+    assert code_of(reminders.send_reminder, ALISHER, now=T0) == "too_soon"
 
 
 @pytest.mark.parametrize("debt_id,reason", [(NIGORA, "no_consent"), (BOBUR, "no_phone")])
 def test_preview_shows_reason(debt_id, reason):
     p = reminders.preview_reminder(debt_id, now=T0)
-    assert p["can_send"] is False and p["reason"] == reason and p["text"]
+    assert p["can_send"] is False and p["reason"] == reason
+    assert p["sms_text"] is None and p["pay_url"] is None and payments.load_tokens() == {}
 
 
 def test_preview_unknown_debt():
     assert code_of(reminders.preview_reminder, 999, now=T0) == "not_found"
 
 
-def test_preview_text_matches_sent_text_length():
+def test_preview_text_equals_sent_text():
     p = reminders.preview_reminder(ALISHER, now=T0)
     s = reminders.send_reminder(ALISHER, now=T0)
-    assert len(p["text"]) == len(s["text"])
+    assert p["sms_text"] == s["sms_text"] == sms.read_outbox()[0]["text"]
 
 
 # --- send -------------------------------------------------------------------------------
 
 def test_send_ok_writes_sms_token_audit():
     r = reminders.send_reminder(ALISHER, now=T0)
-    assert r["status"] == "sent" and r["provider"] == "mock"
+    assert r["status"] == "sent" and r["provider"] == "mock" and r["sent_at"] == "2026-11-21 10:00:00"
+    assert {"status", "sms_text", "pay_url", "sent_at"} <= r.keys()         # поля ответа из ТЗ
     assert r["pay_url"].startswith("http://localhost:8001/pay/")
     out = sms.read_outbox()
     assert len(out) == 1 and out[0]["phone"] == "998901234567" and r["pay_url"] in out[0]["text"]
@@ -112,15 +144,17 @@ def test_sms_failure_removes_token_and_allows_retry(monkeypatch):
 
     monkeypatch.setattr(sms, "send_sms", flaky)
     assert code_of(reminders.send_reminder, ALISHER, now=T0) == "sms_failed"
-    assert payments.load_tokens() == {}
+    [rec] = payments.load_tokens().values()
+    assert rec["sent_at"] is None                                          # снова черновик
     assert adapters.audit_log[-1]["action"] == "debt_reminder_failed"
     assert reminders.send_reminder(ALISHER, now=T0)["status"] == "sent"   # неудача не считается за 3 дня
+    assert len(payments.load_tokens()) == 1 and calls[0] == calls[1]       # та же ссылка
 
 
 def test_sends_remaining_not_original_amount():
     adapters.record_debt_payment(ALISHER, 100_000, source="voice")
     r = reminders.send_reminder(ALISHER, now=T0)
-    assert "350 000 so'm" in r["text"]
+    assert "350 000 so'm" in r["sms_text"]
 
 
 # --- payment ----------------------------------------------------------------------------
@@ -144,7 +178,7 @@ def test_confirm_closes_debt_once():
     r2 = payments.confirm_payment(tok, now=T0 + timedelta(hours=2))
     assert r2["already_paid"] is True and r2["amount"] == 450_000
     assert len(adapters.payments) == 1                       # второй раз не списали
-    assert len(adapters.notifications) == 1 and "450 000" in adapters.notifications[0]["text"]
+    assert [n["text"] for n in adapters.notifications] == ["Alisher to'ladi ✅ 450 000 so'm"]   # текст из ТЗ
     last = adapters.audit_log[-1]
     assert last["actor"] == "system" and last["action"] == "debt_paid_by_link"
 
@@ -253,7 +287,7 @@ def test_reminder_reports_eskiz_test_mode(monkeypatch):
     monkeypatch.setattr(sms, "send_sms", lambda p, t: {"status": "sent", "provider": "eskiz", "id": "1",
                                                        "test_mode": True})
     r = reminders.send_reminder(ALISHER, now=T0)
-    assert r["sms_test_mode"] is True and "450 000 so'm" in r["text"]   # владелец видит настоящий текст
+    assert r["sms_test_mode"] is True and "450 000 so'm" in r["sms_text"]   # владелец видит настоящий текст
 
 
 def test_reminder_mock_is_not_test_mode():
@@ -278,20 +312,20 @@ def test_main_backend_phone_format_works_end_to_end():
 def test_link_too_long_does_not_block_debt(monkeypatch):
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://" + "a" * 120 + ".example.com")
     p = reminders.preview_reminder(ALISHER, now=T0)
-    assert p["can_send"] is False and p["reason"] == "link_too_long" and p["text"] is None
+    assert p["can_send"] is False and p["reason"] == "link_too_long" and p["sms_text"] is None
     assert code_of(reminders.send_reminder, ALISHER, now=T0) == "link_too_long"
     assert payments.load_tokens() == {} and sms.read_outbox() == []
     monkeypatch.setenv("PUBLIC_BASE_URL", "http://localhost:8001")
     assert reminders.send_reminder(ALISHER, now=T0)["status"] == "sent"      # не too_soon
 
 
-def test_unexpected_send_crash_removes_token(monkeypatch):
+def test_unexpected_send_crash_does_not_block(monkeypatch):
     def boom(phone, text):
         raise OSError("disk full")
     monkeypatch.setattr(sms, "send_sms", boom)
     with pytest.raises(OSError):
         reminders.send_reminder(ALISHER, now=T0)
-    assert payments.load_tokens() == {}
+    assert all(t["sent_at"] is None for t in payments.load_tokens().values())
 
 
 @pytest.mark.parametrize("record", [{"debt_id": 1}, {"expires_at": "2026-11-28 10:00:00"}, "junk", None,
@@ -382,3 +416,32 @@ def test_env_example_has_no_secrets():
     for key in ("GEMINI_API_KEY", "ESKIZ_EMAIL", "ESKIZ_PASSWORD", "EXTRAS_ADMIN_TOKEN"):
         assert values.get(key, "") == "", f"{key} must be empty in .env.example"
     assert values["SMS_PROVIDER"] == "mock"
+
+
+
+# --- роутеры как в main.py: app.include_router(...) без обработчиков dev_app --------------
+
+def test_routers_work_when_included_in_plain_app(capsys):
+    from fastapi import FastAPI
+    main_like = FastAPI()
+    main_like.include_router(reminders.router)
+    main_like.include_router(payments.router)
+    c = TestClient(main_like)
+    p = c.post(f"/api/debts/{ALISHER}/remind/preview").json()
+    r = c.post(f"/api/debts/{ALISHER}/remind").json()
+    assert r["pay_url"] == p["pay_url"] and r["sms_text"] == p["sms_text"]
+    tok = token_from(r["pay_url"])
+    info = c.get(f"/api/pay/{tok}").json()
+    assert {"shop_name", "person_name", "amount", "status"} <= info.keys() and "phone" not in info
+    assert c.post(f"/api/pay/{tok}/confirm").json()["already_paid"] is False
+    assert c.post(f"/api/pay/{tok}/confirm").json()["already_paid"] is True
+    assert adapters.get_debt(ALISHER)["status"] == "closed"
+    assert "Alisher to'ladi ✅ 450 000 so'm" in capsys.readouterr().out     # видно в консоли uvicorn
+    for path, status, code in [(f"/api/debts/{NIGORA}/remind", 403, "no_consent"),
+                               (f"/api/debts/{BOBUR}/remind", 422, "no_phone"),
+                               (f"/api/debts/{ALISHER}/remind", 409, "debt_closed"),
+                               ("/api/debts/999/remind/preview", 404, "not_found")]:
+        res = c.post(path)
+        assert res.status_code == status and res.json()["error"] == code, path
+    res = c.get("/api/pay/nope")
+    assert res.status_code == 404 and res.json()["error"] == "not_found"

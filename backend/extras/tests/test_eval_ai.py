@@ -187,3 +187,45 @@ def test_main_ai_all_models_timeout_is_error(monkeypatch):
     monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
     with pytest.raises(RuntimeError, match="timeout"):
         asyncio.run(eval_ai._main_ai(["m1", "m2"], text="x"))
+
+
+# --- ТЗ: 10 фраз, samples/expected.json, точность по суммам ------------------------------
+
+def test_spec_ten_phrases_present():
+    _, cases = eval_ai.load_cases(private_path=None, expected_path=None)
+    spec = [c for c in cases if c["id"].endswith("_spec")]
+    assert len(spec) == 10
+    assert sum(1 for c in spec if c["intent"] == "question") == 2
+    assert spec[0]["input"].startswith("Bugun 2 million 300 ming sotdim") and len(spec[0]["events"]) == 3
+
+
+def test_expected_json_template_matches_spec():
+    import json as _json
+    data = _json.loads(eval_ai.EXPECTED_PATH.read_text(encoding="utf-8"))
+    assert len(data["files"]) == 10 and data["today"] == "2026-11-21"
+    for name, exp in data["files"].items():
+        c = {"id": name, "kind": "text", "input": "x", **exp}
+        assert eval_ai.case_problems(c) == [], name
+
+
+def test_expected_json_finds_files_by_stem(tmp_path):
+    import json as _json
+    (tmp_path / "voice01.m4a").write_bytes(b"x")                 # записали в m4a, в шаблоне .ogg
+    (tmp_path / "nakl.jpg").write_bytes(b"x")
+    exp = tmp_path / "expected.json"
+    exp.write_text(_json.dumps({"files": {
+        "voice01.ogg": {"intent": "record", "events": [{"type": "sale", "amount": 1000}]},
+        "nakl.jpg": {"intent": "record", "events": []},
+        "voice02.ogg": {"intent": "question", "events": []}}}), encoding="utf-8")
+    cases, missing = eval_ai.expected_cases(exp, dirs=(tmp_path,))
+    assert {c["kind"] for c in cases} == {"audio", "photo"} and missing == ["voice02.ogg"]
+    assert any(c["file"].endswith("voice01.m4a") for c in cases)
+
+
+def test_amount_accuracy_in_summary_and_report(capsys):
+    rows = [{"id": "a", "kind": "text", "ok": True, "seconds": 1.0, "fields": {"amount": [3, 4]}, "got": []}]
+    s = eval_ai.summarize(rows)
+    assert s["amount_accuracy"] == 0.75
+    eval_ai.print_report(rows, s, [case([ev("sale", 1_000)], id="a")])
+    out = capsys.readouterr().out
+    assert "Точность по суммам: 75%" in out and "ожидали:  sale 1 000" in out and "получили: —" in out

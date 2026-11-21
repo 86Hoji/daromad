@@ -384,3 +384,9 @@ def test_cli_bad_date(tmp_path):
     img = tmp_path / "a.jpg"
     img.write_bytes(JPEG)
     assert vision.main([str(img), "--today", "23.11.2026"]) == 2
+
+
+def test_prompt_payme_sender_is_person_not_receiver():
+    """Регрессия: flash-lite записывала перевод Payme как expense с получателем (владельцем)."""
+    p = vision.build_prompt(TODAY)
+    assert "Jo'natuvchi" in p and "Qabul qiluvchi" in p and "HECH QACHON \"expense\" emas" in p

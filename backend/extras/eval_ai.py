@@ -5,9 +5,14 @@
     extras/.venv/bin/python -m extras.eval_ai --only photo     # text | audio | photo
     extras/.venv/bin/python -m extras.eval_ai --ids t01_sale,p03_payme
 
-Примеры: extras/eval_cases.json (+ samples/private/cases.json, если есть: туда кладём
-настоящие голосовые и фото команды — папка в .gitignore). Путь "file" считается от extras/.
-Отчёт: таблица в консоли + extras/eval_report.json.
+Примеры:
+  extras/eval_cases.json      — фразы текстом (в т.ч. 10 фраз из ТЗ), синтетический голос и фото;
+  extras/samples/expected.json — «имя файла -> ожидаемые события» для настоящих записей команды:
+                                 файл ищется в samples/ и samples/private/ (в .gitignore) по имени без
+                                 расширения (.ogg/.m4a/.mp3/.wav, .jpg/.png/...); каких файлов нет — пропускаются;
+  extras/samples/private/cases.json — дополнительные примеры того же формата, что eval_cases.json.
+Голос идёт через основной ai.parse_input (он уже есть в репо), фото — через vision.aparse_photo.
+Отчёт: таблица «ожидали / получили» в консоли, точность по суммам в %, и extras/eval_report.json.
 
 Пример засчитан, если совпали intent и каждое событие: тип, сумма (точно), а если указаны
 в эталоне — person (с учётом опа/ака и кириллицы), due_date, category; лишних событий нет;
@@ -27,6 +32,9 @@ from typing import Awaitable, Callable
 EXTRAS_DIR = Path(__file__).resolve().parent
 CASES_PATH = EXTRAS_DIR / "eval_cases.json"
 PRIVATE_CASES_PATH = EXTRAS_DIR / "samples" / "private" / "cases.json"
+EXPECTED_PATH = EXTRAS_DIR / "samples" / "expected.json"
+SAMPLE_DIRS = (EXTRAS_DIR / "samples", EXTRAS_DIR / "samples" / "private")
+PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".pdf")
 REPORT_PATH = EXTRAS_DIR / "eval_report.json"
 KINDS = ("text", "audio", "photo")
 FIELDS = ("type", "amount", "person", "due_date", "category")
@@ -39,13 +47,46 @@ MAIN_AI_TIMEOUT = 30         # основной ai.py сам не огранич
 
 # --- примеры ----------------------------------------------------------------------------
 
-def load_cases(path: Path = CASES_PATH, private_path: Path | None = PRIVATE_CASES_PATH) -> tuple[date, list[dict]]:
+def _find_sample(name: str, dirs=SAMPLE_DIRS) -> Path | None:
+    """Файл из expected.json: точное имя, иначе то же имя с другим расширением."""
+    stem = Path(name).stem
+    for d in dirs:
+        if (d / name).is_file():
+            return d / name
+        for ext in (*AUDIO_MIME, *PHOTO_EXT):
+            if (d / (stem + ext)).is_file():
+                return d / (stem + ext)
+    return None
+
+
+def expected_cases(path: Path = EXPECTED_PATH, dirs=SAMPLE_DIRS) -> tuple[list[dict], list[str]]:
+    """samples/expected.json -> (примеры для найденных файлов, имена ненайденных)."""
+    if not path.exists():
+        return [], []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    cases, missing = [], []
+    for name, exp in (data.get("files") or {}).items():
+        f = _find_sample(name, dirs)
+        if f is None:
+            missing.append(name)
+            continue
+        kind = "photo" if f.suffix.lower() in PHOTO_EXT else "audio"
+        rel = str(f.relative_to(EXTRAS_DIR)) if f.is_relative_to(EXTRAS_DIR) else str(f)
+        cases.append({"id": f"file:{f.name}", "kind": kind, "file": rel,
+                      "intent": exp.get("intent", "record"), "events": exp.get("events", [])})
+    return cases, missing
+
+
+def load_cases(path: Path = CASES_PATH, private_path: Path | None = PRIVATE_CASES_PATH,
+               expected_path: Path | None = EXPECTED_PATH) -> tuple[date, list[dict]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     today = date.fromisoformat(data["today"])
     cases = list(data["cases"])
     if private_path and private_path.exists():
         extra = json.loads(private_path.read_text(encoding="utf-8"))
         cases += extra.get("cases", []) if isinstance(extra, dict) else extra
+    if expected_path:
+        cases += expected_cases(expected_path)[0]
     return today, cases
 
 
@@ -157,6 +198,8 @@ def summarize(rows: list[dict]) -> dict:
             fields[f][0] += ok
             fields[f][1] += tot
     out["fields"] = {f: f"{ok}/{tot}" for f, (ok, tot) in fields.items() if tot}
+    ok, tot = fields["amount"]
+    out["amount_accuracy"] = round(ok / tot, 3) if tot else None     # «точность по суммам» для слайда
     return out
 
 
@@ -244,16 +287,42 @@ async def run_eval(cases: list[dict], today: date, runner: Runner, pause: float 
     return rows
 
 
-def print_report(rows: list[dict], summary: dict) -> None:
+def _events_short(events: list[dict] | None) -> str:
+    if not events:
+        return "—"
+    parts = []
+    for e in events:
+        s = f"{e.get('type')} {e.get('amount'):,}".replace(",", " ")
+        if e.get("person"):
+            s += f" {e['person'][0] if isinstance(e['person'], list) else e['person']}"
+        if e.get("due_date"):
+            s += f" {e['due_date']}"
+        parts.append(s)
+    return "; ".join(parts)
+
+
+def print_report(rows: list[dict], summary: dict, cases: list[dict] | None = None) -> None:
+    expected = {c.get("id"): c for c in cases or []}
     for r in rows:
         mark = "OK  " if r["ok"] else ("ERR " if r.get("crash") else "FAIL")
-        print(f"{mark} {str(r['id']):<26} {r['seconds']:>5.1f}s  " + "; ".join(r.get("errors", [])))
+        print(f"{mark} {str(r['id']):<26} {r['seconds']:>5.1f}s")
+        c = expected.get(r["id"])
+        if c is not None:
+            want = "вопрос" if c.get("intent") == "question" else _events_short(c.get("events"))
+            print(f"       ожидали:  {want}")
+        if not r.get("crash"):
+            print(f"       получили: {_events_short(r.get('got'))}")
+        if r.get("errors"):
+            print(f"       ошибки:   " + "; ".join(r["errors"]))
     print()
     print(f"Итого: {summary['passed']}/{summary['total']} ({summary['accuracy']:.0%}), сбоев: {summary['errors']}")
     for k, v in summary["by_kind"].items():
         print(f"  {k:<6} {v['passed']}/{v['total']}  ~{v['avg_seconds']}s на пример")
     if summary["fields"]:
         print("  поля: " + ", ".join(f"{f} {v}" for f, v in summary["fields"].items()))
+    if summary.get("amount_accuracy") is not None:
+        note = f", без {summary['errors']} сбоев связи" if summary["errors"] else ""
+        print(f"Точность по суммам: {summary['amount_accuracy']:.0%} ({summary['fields']['amount']}{note})")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -264,6 +333,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     today, cases = load_cases()
+    _, missing = expected_cases()
+    if missing:
+        print(f"samples/expected.json: нет файлов ({len(missing)}): {', '.join(missing)} — пропущены\n")
     if args.only:
         cases = [c for c in cases if c.get("kind") == args.only]
     if args.ids:
@@ -274,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     rows = asyncio.run(run_eval(cases, today, default_runner()))
     summary = summarize(rows)
-    print_report(rows, summary)
+    print_report(rows, summary, cases)
     REPORT_PATH.write_text(json.dumps({"today": today.isoformat(), "summary": summary, "rows": rows},
                                       ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\nОтчёт: {REPORT_PATH}")

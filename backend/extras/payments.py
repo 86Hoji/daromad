@@ -1,9 +1,13 @@
 """Ссылка на оплату долга: токен на 7 дней и подтверждение оплаты.
 
-    create_token(debt_id) -> token                  # secrets.token_urlsafe(32), хранится в extras/tokens.json
+    draft_token(debt_id) -> token                   # secrets.token_urlsafe(32), 7 дней, extras/tokens.json
     pay_url(token) -> "{PUBLIC_BASE_URL}/pay/{token}"
     get_payment(token) -> {shop_name, person_name, amount, status, ...}   # что видит должник
     confirm_payment(token) -> {...}                 # закрывает остаток долга; повтор не списывает дважды
+    router                                          # FastAPI APIRouter: GET /api/pay/{token}, POST /api/pay/{token}/confirm
+
+Запись токена: {debt_id, created_at, expires_at, sent_at, paid_at, paid_amount};
+sent_at = null — черновик из preview (SMS ещё не ушло).
 
 Ошибки — ExtrasError(code): not_found, token_expired, debt_closed (битая запись токена = not_found).
 Оплата пока демо (кнопка на странице); при подключении Click/Payme confirm_payment
@@ -18,11 +22,15 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+
 from . import adapters
 
 EXTRAS_DIR = Path(__file__).resolve().parent
 TOKENS_PATH = EXTRAS_DIR / "tokens.json"
 TOKEN_TTL = timedelta(days=7)
+TOKEN_LENGTH = 43                   # len(secrets.token_urlsafe(32))
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 
 _lock = threading.RLock()
@@ -39,6 +47,11 @@ class ExtrasError(Exception):
         self.code = code
         self.detail = detail
         self.http_status = self.STATUS.get(code, 400)
+
+
+def error_response(exc: ExtrasError) -> JSONResponse:
+    """Ошибка в JSON для роутеров: {"error": code, "detail": ...} с HTTP-статусом кода."""
+    return JSONResponse({"error": exc.code, "detail": exc.detail}, status_code=exc.http_status)
 
 
 def _now() -> datetime:
@@ -91,16 +104,41 @@ def create_token(debt_id: int, now: datetime | None = None) -> str:
     token = secrets.token_urlsafe(32)
     with _lock:
         tokens = load_tokens()
-        tokens[token] = {"debt_id": debt_id, "created_at": _fmt(now),
-                         "expires_at": _fmt(now + TOKEN_TTL), "paid_at": None, "paid_amount": None}
+        tokens[token] = {"debt_id": debt_id, "created_at": _fmt(now), "expires_at": _fmt(now + TOKEN_TTL),
+                         "sent_at": None, "paid_at": None, "paid_amount": None}
         _save_tokens(tokens)
     return token
 
 
-def delete_token(token: str) -> None:
+def draft_token(debt_id: int, now: datetime | None = None) -> str:
+    """Неотправленный неоплаченный токен этого долга (из прошлого preview) или новый."""
+    now = now or _now()
+    with _lock:
+        for tok, rec in sorted(load_tokens().items(), key=lambda kv: str(kv[1].get("created_at")), reverse=True):
+            if (isinstance(rec, dict) and rec.get("debt_id") == debt_id and "sent_at" in rec
+                    and rec["sent_at"] is None and rec.get("paid_at") is None):
+                try:
+                    if _parse(rec["expires_at"]) > now:
+                        return tok
+                except (KeyError, TypeError, ValueError):
+                    continue
+        return create_token(debt_id, now)
+
+
+def mark_sent(token: str, now: datetime) -> None:
+    """SMS со ссылкой уходит: отметить и продлить ссылку на 7 дней от отправки."""
     with _lock:
         tokens = load_tokens()
-        if tokens.pop(token, None) is not None:
+        tokens[token].update(sent_at=_fmt(now), expires_at=_fmt(now + TOKEN_TTL))
+        _save_tokens(tokens)
+
+
+def unmark_sent(token: str) -> None:
+    """SMS не ушло: снова черновик (попытка не считается за «раз в 3 дня»)."""
+    with _lock:
+        tokens = load_tokens()
+        if token in tokens:
+            tokens[token]["sent_at"] = None
             _save_tokens(tokens)
 
 
@@ -161,5 +199,26 @@ def confirm_payment(token: str, now: datetime | None = None) -> dict:
     adapters.add_audit(debt["shop_id"], "system", "debt_paid_by_link",
                        {"debt_id": debt["id"], "amount": amount})
     adapters.notify_owner(debt["shop_id"],
-                          f"{debt['person_name']} qarzini to'ladi: {amount:,} so'm".replace(",", " "))
+                          f"{debt['person_name']} to'ladi ✅ {amount:,} so'm".replace(",", " "))
     return dict(_view(rec, debt), already_paid=False)
+
+
+# --- FastAPI router (в основном бэке: app.include_router(payments.router)) — открыт для должника ---
+
+router = APIRouter(prefix="/api", tags=["payments"])
+
+
+@router.get("/pay/{token}")
+def pay_info(token: str):
+    try:
+        return get_payment(token)
+    except ExtrasError as exc:
+        return error_response(exc)
+
+
+@router.post("/pay/{token}/confirm")
+def pay_confirm(token: str):
+    try:
+        return confirm_payment(token)
+    except ExtrasError as exc:
+        return error_response(exc)

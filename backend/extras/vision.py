@@ -77,8 +77,10 @@ events[].type — rasm turiga qarab:
   person = yetkazib beruvchi (firma yoki ism), due_date = to'lov muddati (YYYY-MM-DD) agar yozilgan bo'lsa, aks holda null,
   note = hujjat raqami (masalan "nakladnaya № 145").
 - Nakladnoyda "to'landi"/"оплачено"/"paid" belgisi bo'lsa -> "expense", category = "tovar".
-- Payme/Click/bank o'tkazma skrinshoti, do'konga KIMDIR pul o'tkazgan bo'lsa -> "debt_returned", person = jo'natuvchi ismi
-  (skrinshotda qanday yozilgan bo'lsa). Jo'natuvchi ismi ko'rinmasa -> "sale".
+- Payme/Click/bank o'tkazma skrinshoti ("O'tkazma muvaffaqiyatli", "Перевод выполнен" va h.k.) — bu MIJOZ do'kon egasiga
+  pul o'tkazgani: egasi = "Qabul qiluvchi"/"Получатель", mijoz = "Jo'natuvchi"/"Отправитель".
+  Bunday skrinshot HECH QACHON "expense" emas. -> "debt_returned", person = Jo'natuvchi/Отправитель ismi
+  (skrinshotda qanday yozilgan bo'lsa; Qabul qiluvchi ismini person ga YOZMA). Jo'natuvchi ismi ko'rinmasa -> "sale".
 - Xarajat cheki (paket, svet, gaz, taksi, benzin, ijara va h.k.) -> "expense", category tanla:
   tovar | ijara | maosh | kommunal | transport | boshqa (svet/gaz/suv -> kommunal; taksi/benzin -> transport; paket va mayda -> boshqa).
 amount — butun son, so'mda, tiyinsiz ("3 000 000,00" = 3000000, "3.000.000" = 3000000).

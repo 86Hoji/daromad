@@ -9,9 +9,9 @@
 | `adapters.py` | доступ к магазину, долгам, оплатам, журналу; сейчас — демо-данные в памяти |
 | `vision.py` | фото накладной / чека / скриншота Payme-Click → события Daromad (Gemini + проверка кодом) |
 | `sms.py` | текст напоминания (узбекский, ≤160 символов), номер, отправка: `mock` или Eskiz |
-| `payments.py` | ссылка на оплату долга: токен на 7 дней, подтверждение без двойного списания |
-| `reminders.py` | напоминание должнику: проверки → токен → SMS → журнал |
-| `dev_app.py` | отдельный FastAPI на порту 8001 + страница оплаты для должника |
+| `payments.py` | ссылка на оплату долга: токен на 7 дней, подтверждение без двойного списания; `router` (APIRouter) |
+| `reminders.py` | напоминание должнику: проверки → ссылка → SMS → журнал; `router` (APIRouter) |
+| `dev_app.py` | FastAPI на порту 8001: подключает оба роутера + демо-страница оплаты |
 | `eval_ai.py` | проверка точности ИИ на эталонных примерах (текст, голос, фото) |
 
 Принцип тот же, что у основного бэка: ИИ только извлекает данные, суммы и правила проверяет код,
@@ -67,13 +67,16 @@ extras/.venv/bin/uvicorn extras.dev_app:app --port 8001
 
 | Метод | Путь | Что делает |
 |---|---|---|
-| POST | `/api/debts/{id}/remind/preview` | текст SMS, замаскированный номер, можно ли отправить и почему нет |
-| POST | `/api/debts/{id}/remind` | отправить напоминание; ответ: `text`, `pay_url`, `expires_at`, `sms_test_mode` |
+| POST | `/api/debts/{id}/remind/preview` | `sms_text`, `pay_url`, замаскированный `phone`, `can_send`, `reason`; SMS не шлёт |
+| POST | `/api/debts/{id}/remind` | отправить; ответ: `status`, `sms_text`, `pay_url`, `sent_at`, `expires_at`, `sms_test_mode` |
 | GET | `/api/pay/{token}` | данные для страницы оплаты (без телефона должника) |
 | POST | `/api/pay/{token}/confirm` | оплатить остаток; повтор возвращает `already_paid: true` и не списывает |
-| GET | `/pay/{token}` | страница оплаты для должника (по ссылке из SMS) |
+| GET | `/pay/{token}` | **демо**-страница оплаты (только в `dev_app`; настоящая — в Mini App у Ходжиакбара) |
 | GET | `/api/dev/debts` | демо: долги и уведомления владельцу |
 | POST | `/api/dev/reset` | демо: вернуть данные к исходным |
+
+Preview создаёт ссылку-черновик и показывает настоящий `pay_url`; remind отправляет **ту же** ссылку.
+Правило «не чаще раза в 3 дня» считает только отправленные SMS: preview и неудачная отправка его не трогают.
 
 Ошибки приходят как `{"error": code, "detail": ...}`:
 
@@ -93,6 +96,40 @@ extras/.venv/bin/uvicorn extras.dev_app:app --port 8001
 > `/api/dev/*` открыты, пока `EXTRAS_ADMIN_TOKEN` пуст: на публичном адресе его **обязательно** задать,
 > иначе любой сможет слать SMS за ваш счёт. При склейке с `api.py` маршруты владельца идут через
 > `Depends(current_shop)` и проверку, что долг принадлежит магазину. Номера в ответах всегда замаскированы.
+
+**Цепочка оплаты через curl** (сервер запущен, `SMS_PROVIDER=mock`):
+
+```bash
+curl -s -X POST localhost:8001/api/dev/reset
+```
+
+```bash
+curl -s -X POST localhost:8001/api/debts/1/remind/preview
+```
+
+```bash
+curl -s -X POST localhost:8001/api/debts/1/remind
+```
+
+SMS появилась в `extras/outbox.jsonl`. Токен — конец `pay_url` из ответа:
+
+```bash
+curl -s localhost:8001/api/pay/ТОКЕН
+```
+
+```bash
+curl -s -X POST localhost:8001/api/pay/ТОКЕН/confirm
+```
+
+Долг закрыт, в консоли uvicorn: `[owner shop=1] Alisher to'ladi ✅ 450 000 so'm`. Повторный confirm
+возвращает `"already_paid": true` и не списывает. Проверка отказов:
+
+```bash
+curl -s -X POST localhost:8001/api/debts/2/remind
+```
+
+→ `{"error":"no_consent"}`. Если задан `EXTRAS_ADMIN_TOKEN`, к запросам владельца и `/api/dev/*`
+добавьте `-H "X-Admin-Token: ..."`.
 
 **SMS:**
 
@@ -120,14 +157,22 @@ extras/.venv/bin/python -m extras.vision extras/samples/synthetic/payme_alisher.
 extras/.venv/bin/python -m extras.eval_ai
 ```
 
-Фильтры: `--only text|audio|photo`, `--ids t01_sale,p03_payme`. Отчёт — в консоли и в
-`extras/eval_report.json`. Эталоны — `extras/eval_cases.json`; настоящие голосовые и фото команды
-кладутся в `extras/samples/private/` вместе с `cases.json` того же формата (папка в `.gitignore`,
-реальные лица и номера в git не попадают).
+Фильтры: `--only text|audio|photo`, `--ids s01_spec,p03_payme`. Печатает по каждому примеру
+«ожидали / получили / ошибки», в конце — точность по суммам в %; отчёт — `extras/eval_report.json`.
 
-Последний прогон (21.11.2026): 21/23 — текст 15/15, голос 4/4 (синтетический русский голос macOS),
-фото 2/4 (два — сбой 503 у Gemini, не ошибка распознавания). Запасная `flash-lite` на фото
-слабее основной: однажды записала перевод Payme как расход.
+Эталоны:
+- `extras/eval_cases.json` — 10 фраз из ТЗ (`s01`–`s10`), ещё 15 фраз, 4 синтетических голосовых, 4 фото;
+- `extras/samples/expected.json` — «имя файла → ожидаемые события» для **настоящих записей**: запишите
+  10 фраз из ТЗ, назовите `voice01` … `voice10` (.ogg/.m4a/.mp3/.wav) и положите в
+  `extras/samples/private/` (в `.gitignore`: голос и номера в git не попадают). Фото — так же, добавив
+  строку `"nakladnaya1.jpg": {"intent": "record", "events": [...]}`. Ненайденные файлы пропускаются.
+
+Прогоны 21.11.2026:
+- 10 фраз из ТЗ (текстом, `flash-lite`): **10/10, суммы 13/13** (2 фразы — со второй попытки, сбой связи);
+- остальные: текст 15/15, голос 4/4 (синтетический русский голос macOS);
+- фото (`python -m extras.vision`, `flash-lite`): **4/4** — сумма, поставщик/отправитель, срок, категория.
+  До уточнения промпта `flash-lite` путала перевод Payme с расходом (брала получателя вместо отправителя).
+- Голос на узбекском на **настоящих** записях ещё не проверен — нужны записи `voice01`…`voice10`.
 
 ## Тесты
 
@@ -150,6 +195,7 @@ extras/.venv/bin/python -m pytest -q
 ## Склейка с основным бэком
 
 1. `adapters.py`: тела функций → вызовы `db.py` (`shops`, `debts`, `debt_payments`, `audit_log`), `notify_owner` → сообщение в бот.
-2. Маршруты из `dev_app.py` → в `api.py` под `Depends(current_shop)`; `/api/dev/*` не переносить.
-3. `tokens.json` → таблица в SQLite (тот же формат: `token, debt_id, created_at, expires_at, paid_at, paid_amount`).
+2. В `main.py`: `app.include_router(reminders.router, dependencies=[Depends(current_shop)])` и
+   `app.include_router(payments.router)`; плюс проверка, что долг принадлежит магазину. `/api/dev/*` и демо-страницу не переносить.
+3. `tokens.json` → таблица в SQLite (тот же формат: `token, debt_id, created_at, expires_at, sent_at, paid_at, paid_amount`).
 4. Фото в боте: `await vision.aparse_photo(...)` → `pipeline.save_drafts(shop_id, events, source="photo")`.
