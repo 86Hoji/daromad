@@ -1,0 +1,127 @@
+{
+ "today": "2026-11-21",
+ "note": "Голосовые 10 фраз из ТЗ: положите записи в extras/samples/private/ (папка в .gitignore) с этими именами. Расширение может быть любым из .ogg/.m4a/.mp3/.wav — ищется по имени без расширения. Фото добавляйте так же: \"nakladnaya1.jpg\": {intent, events}.",
+ "files": {
+  "voice01.ogg": {
+   "phrase": "Bugun 2 million 300 ming sotdim, Alisher 150 ming qarz oldi, payshanba kuni yetkazib beruvchiga 3 million.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "sale",
+     "amount": 2300000
+    },
+    {
+     "type": "debt_given",
+     "amount": 150000,
+     "person": "Alisher"
+    },
+    {
+     "type": "scheduled_payment",
+     "amount": 3000000,
+     "due_date": "2026-11-26"
+    }
+   ]
+  },
+  "voice02.ogg": {
+   "phrase": "Nigora opa 300 ming qaytardi.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "debt_returned",
+     "amount": 300000,
+     "person": "Nigora"
+    }
+   ]
+  },
+  "voice03.ogg": {
+   "phrase": "Paketga 45 ming, taksiga 30 ming ketdi.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "expense",
+     "amount": 45000,
+     "category": "boshqa"
+    },
+    {
+     "type": "expense",
+     "amount": 30000,
+     "category": "transport"
+    }
+   ]
+  },
+  "voice04.ogg": {
+   "phrase": "Bir yarim million savdo bo'ldi, svetga 120 ming to'ladim.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "sale",
+     "amount": 1500000
+    },
+    {
+     "type": "expense",
+     "amount": 120000,
+     "category": "kommunal"
+    }
+   ]
+  },
+  "voice05.ogg": {
+   "phrase": "Bobur yarim million qarz oldi, telefoni 90 123 45 67.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "debt_given",
+     "amount": 500000,
+     "person": "Bobur"
+    }
+   ]
+  },
+  "voice06.ogg": {
+   "phrase": "Сегодня продал на два миллиона, аренда пятнадцатого три миллиона.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "sale",
+     "amount": 2000000
+    },
+    {
+     "type": "scheduled_payment",
+     "amount": 3000000,
+     "due_date": "2026-12-15"
+    }
+   ]
+  },
+  "voice07.ogg": {
+   "phrase": "Kim menga qarz?",
+   "intent": "question",
+   "events": []
+  },
+  "voice08.ogg": {
+   "phrase": "Bu hafta qancha sotdim?",
+   "intent": "question",
+   "events": []
+  },
+  "voice09.ogg": {
+   "phrase": "Akmalga ertaga 2 million 800 ming berishim kerak.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "scheduled_payment",
+     "amount": 2800000,
+     "due_date": "2026-11-22",
+     "person": "Akmal"
+    }
+   ]
+  },
+  "voice10.ogg": {
+   "phrase": "Sardor 80 ming qarzini berdi, qolgani keyin.",
+   "intent": "record",
+   "events": [
+    {
+     "type": "debt_returned",
+     "amount": 80000,
+     "person": "Sardor"
+    }
+   ]
+  }
+ }
+}
