@@ -62,8 +62,8 @@ export function Skeleton({ className = "" }: { className?: string }) {
 export function LogoMark({ size = 28, className = "" }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
-      <rect width="32" height="32" rx="9" fill="var(--lapis)" />
-      <g fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="32" height="32" rx="9" fill="var(--brand)" />
+      <g fill="none" stroke="var(--brand-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
         <path d="M7 13.5v5M10.5 10v12M14 12.5v7" />
         <path d="M17.5 16h3.5l4-5.5" />
       </g>
@@ -107,8 +107,8 @@ export function LiveDot({ at, error }: { at: Date | null; error?: string | null 
   return (
     <span className="inline-flex items-center gap-2 text-[13px] text-ink-3" aria-live="off">
       <span className="relative flex h-2 w-2">
-        {!error && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-pos opacity-50 motion-reduce:hidden" />}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${error ? "bg-neg" : "bg-pos"}`} />
+        {!error && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ink-3 opacity-50 motion-reduce:hidden" />}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${error ? "bg-neg" : "bg-ink-3"}`} />
       </span>
       {error ? "aloqa yo'q" : <span className="num">jonli · {t}</span>}
     </span>

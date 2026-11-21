@@ -3,6 +3,7 @@ import { BookText, Home, PieChart, Users } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { ReminderProvider } from "../features/Reminder";
 import { LiveProvider, useLive } from "../lib/live";
+import { AmbientBg } from "../ui/Ambient";
 import { Chip, LiveDot, Logo, ThemeToggle } from "../ui/bits";
 import { VoiceDock } from "./VoiceDock";
 
@@ -21,7 +22,7 @@ function Sidebar() {
         <Logo />
       </NavLink>
 
-      <div className="mt-8 rounded-el bg-surface px-4 py-3.5">
+      <div className="glass mt-8 rounded-el px-4 py-3.5">
         <div className="truncate text-[15px] font-semibold">{summary?.shop.name ?? "Dilshod Biznes"}</div>
         <div className="mt-1.5 flex items-center gap-2">
           <Chip tone="brand">demo</Chip>
@@ -100,11 +101,12 @@ export function AppLayout() {
   return (
     <LiveProvider>
       <ReminderProvider>
-        <div className="min-h-dvh bg-bg">
+        <div className="min-h-dvh">
+          <AmbientBg variant="app" />
           <Sidebar />
           <TopNav />
           {/* резерв снизу под голосовой док: контент никогда не уходит под него */}
-          <main className="px-4 pt-4 pb-[calc(132px+env(safe-area-inset-bottom))] sm:px-6 xl:ml-[248px] xl:px-10 xl:pt-8">
+          <main className="relative z-10 px-4 pt-4 pb-[calc(132px+env(safe-area-inset-bottom))] sm:px-6 xl:ml-[248px] xl:px-10 xl:pt-8">
             <div className="mx-auto max-w-[960px] xl:max-w-[1320px]">
               <Outlet />
             </div>

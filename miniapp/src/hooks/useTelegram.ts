@@ -50,8 +50,8 @@ export function useTgMainButton(spec: MainButtonSpec | null) {
   useEffect(() => {
     const m = tgMainButton();
     if (!m || !spec) return;
-    const brand = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() || "#1f3fbf";
-    m.setParams ? m.setParams({ text: spec.text, color: brand, text_color: "#ffffff" }) : m.setText(spec.text);
+    const brand = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() || "#1c1d21";
+    m.setParams ? m.setParams({ text: spec.text, color: brand, text_color: getComputedStyle(document.documentElement).getPropertyValue("--brand-ink").trim() || "#ffffff" }) : m.setText(spec.text);
     if (spec.loading) m.showProgress?.(false);
     else m.hideProgress?.();
     if (spec.disabled) m.disable?.();

@@ -43,7 +43,7 @@ export function LiveFeed({ items, fresh, today, limit = 8 }: { items: Entry[] | 
               className={`flex items-center gap-3 rounded-el px-3 py-2.5 transition-colors duration-700 ${isNew ? "bg-brand-soft" : ""}`}
             >
               <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isNew ? "bg-brand text-white" : "bg-surface-2 text-ink-3"}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isNew ? "bg-brand text-brand-ink" : "bg-surface-2 text-ink-3"}`}
                 title={s.label}
               >
                 <Icon size={16} strokeWidth={1.75} aria-hidden />

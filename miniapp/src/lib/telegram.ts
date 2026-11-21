@@ -94,21 +94,13 @@ export function currentTheme(): Theme {
   return p === "system" ? systemTheme() : p;
 }
 
-/** themeParams Telegram -> наши токены фона и текста; акценты (Lapis, смысловые) остаются нашими. */
-function applyTelegramParams(theme: Theme) {
-  const root = document.documentElement.style;
-  const p = tg?.themeParams ?? {};
-  const set = (name: string, v?: string) => (v ? root.setProperty(name, v) : root.removeProperty(name));
-  set("--bg", p.secondary_bg_color ?? p.bg_color);
-  set("--surface", p.section_bg_color ?? p.bg_color);
-  set("--ink", p.text_color);
-  set("--ink-3", p.hint_color);
-  set("--ink-2", p.subtitle_text_color ?? p.hint_color);
-  const bg = p.secondary_bg_color ?? p.bg_color ?? (theme === "dark" ? "#0b1430" : "#f4f6fa");
+/** Монохромная палитра своя; от Telegram берём только colorScheme, а шапку и фон клиента красим в наш --bg. */
+function applyTelegramParams() {
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
   try {
     tg?.setHeaderColor?.(bg);
     tg?.setBackgroundColor?.(bg);
-    tg?.setBottomBarColor?.(p.section_bg_color ?? p.bg_color ?? bg);
+    tg?.setBottomBarColor?.(bg);
   } catch {
     /* старые клиенты Telegram */
   }
@@ -116,9 +108,9 @@ function applyTelegramParams(theme: Theme) {
 
 export function applyTheme(theme: Theme = currentTheme()) {
   document.documentElement.dataset.theme = theme;
-  if (inTelegram) applyTelegramParams(theme);
+  if (inTelegram) applyTelegramParams();
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg || "#f4f6fa");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg || "#f6f5f2");
 }
 
 export function setupTelegram() {

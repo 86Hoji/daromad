@@ -1,76 +1,82 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Daromad — дизайн-система
-   Lapis / Night / Porcelain + три смысловых цвета. Разделение — тоном и
-   пространством, тени только у плавающих элементов.
+   Daromad — дизайн-система (монохром)
+   Белый / серые / графит. Цвет — только по смыслу: бирюза «хватает»,
+   гранат «не хватает», шафран — долги (тонко). Всё остальное — серая шкала.
+   Стекло: лендинг и /app (backdrop-filter), /tg — плоские слои.
    ========================================================================== */
 
 :root {
-  /* бренд-константы (не меняются с темой: тёмные секции лендинга, логотип) */
-  --lapis: #1f3fbf;
-  --night: #0b1430;
-  --night-2: #121d40;
-  --night-3: #1a2650;
-  --porcelain: #f4f6fa;
-
-  /* поверхности */
-  --bg: #f4f6fa;
+  /* поверхности: тёплый нейтральный белый и светло-серые слои */
+  --bg: #f6f5f2;
   --surface: #ffffff;
-  --surface-2: #eaeef5;
-  --surface-3: #dfe5ef;
-  --line: #dce1ec;
+  --surface-2: #eeede9;
+  --surface-3: #e4e3de;
+  --line: #e3e1dc;
 
-  /* текст: холодные серые, производные от Night (все пары — AA) */
-  --ink: #0b1430;
-  --ink-2: #3d4766;
-  --ink-3: #646e8c;
+  /* текст: графитовая шкала (все пары — AA) */
+  --ink: #17181c;
+  --ink-2: #45474d;
+  --ink-3: #66686e;
 
-  /* бренд */
-  --brand: #1f3fbf;
-  --brand-hover: #1a34a0;
+  /* главное действие: графит в светлой теме */
+  --brand: #1c1d21;
+  --brand-hover: #34363b;
   --brand-ink: #ffffff;
-  --brand-text: #1f3fbf;
-  --brand-soft: #e6ebfa;
+  --brand-text: #17181c;
+  --brand-soft: #ebeae6;
 
   /* смысл: заливки / текст / подложки */
   --pos: #12a594;
-  --pos-text: #0b7f72;
-  --pos-soft: #ddf3f0;
+  --pos-text: #0a7a6d;
+  --pos-soft: #ddf2ee;
   --neg: #e0384b;
   --neg-text: #c42638;
-  --neg-soft: #fce6e8;
+  --neg-soft: #fbe5e7;
   --warn: #e9a23b;
   --warn-text: #9a5d00;
-  --warn-soft: #fcf0dc;
+  --warn-soft: #f8eedd;
 
   /* график */
-  --chart-past: #0b1430;
-  --chart-future: #1f3fbf;
-  --chart-band: #1f3fbf;
+  --chart-past: #17181c;
+  --chart-future: #55575d;
+  --chart-band: #8e9096;
 
-  --shadow-float: 0 8px 24px rgb(11 20 48 / 0.08), 0 1px 2px rgb(11 20 48 / 0.06);
-  --focus: #1f3fbf;
+  /* стекло */
+  --glass-fill: rgb(255 255 255 / 0.58);
+  --glass-line: rgb(255 255 255 / 0.75);
+  --glass-hi: rgb(255 255 255 / 0.95);
+  --glass-shadow: 0 1px 2px rgb(23 24 28 / 0.04), 0 8px 28px rgb(23 24 28 / 0.05);
+  --layer: rgb(255 255 255 / 0.78);
+  --blob-a: #ffffff;
+  --blob-b: #dddcd6;
+  --blob-c: #e9e8e3;
+
+  --shadow-float: 0 8px 24px rgb(23 24 28 / 0.1), 0 1px 2px rgb(23 24 28 / 0.06);
+  --focus: #17181c;
   color-scheme: light;
 }
 
+/* тёмная тема — графит, не чистый чёрный */
 :root[data-theme="dark"],
 .on-night {
-  --bg: #0b1430;
-  --surface: #121d40;
-  --surface-2: #18244d;
-  --surface-3: #22305c;
-  --line: #22305c;
+  --bg: #0e0f12;
+  --surface: #16181c;
+  --surface-2: #1c1e23;
+  --surface-3: #26282e;
+  --line: #2b2d33;
 
-  --ink: #eef1f8;
-  --ink-2: #b4bcd3;
-  --ink-3: #8590ae;
+  --ink: #f1f1ef;
+  --ink-2: #b9babe;
+  --ink-3: #8c8e94;
 
-  --brand: #3355e0;
-  --brand-hover: #4464ea;
-  --brand-ink: #ffffff;
-  --brand-text: #8ea2ff;
-  --brand-soft: rgb(91 120 240 / 0.16);
+  /* главное действие: белое в тёмной теме */
+  --brand: #f1f1ef;
+  --brand-hover: #ffffff;
+  --brand-ink: #0e0f12;
+  --brand-text: #f1f1ef;
+  --brand-soft: rgb(255 255 255 / 0.08);
 
   --pos: #2cc5b2;
   --pos-text: #2cc5b2;
@@ -80,14 +86,23 @@
   --neg-soft: rgb(255 90 107 / 0.15);
   --warn: #f2b655;
   --warn-text: #f2b655;
-  --warn-soft: rgb(242 182 85 / 0.14);
+  --warn-soft: rgb(242 182 85 / 0.13);
 
-  --chart-past: #eef1f8;
-  --chart-future: #7b93ff;
-  --chart-band: #5b78f0;
+  --chart-past: #f1f1ef;
+  --chart-future: #a6a8ad;
+  --chart-band: #8c8e94;
 
-  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.35);
-  --focus: #8ea2ff;
+  --glass-fill: rgb(30 32 37 / 0.55);
+  --glass-line: rgb(255 255 255 / 0.08);
+  --glass-hi: rgb(255 255 255 / 0.1);
+  --glass-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+  --layer: rgb(255 255 255 / 0.045);
+  --blob-a: #2c2e34;
+  --blob-b: #1f2126;
+  --blob-c: #36383e;
+
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.45);
+  --focus: #f1f1ef;
   color-scheme: dark;
 }
 
@@ -114,11 +129,6 @@
   --color-warn: var(--warn);
   --color-warn-text: var(--warn-text);
   --color-warn-soft: var(--warn-soft);
-  --color-night: var(--night);
-  --color-night-2: var(--night-2);
-  --color-night-3: var(--night-3);
-  --color-lapis: var(--lapis);
-  --color-porcelain: var(--porcelain);
 
   --font-sans: "Geologica", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Unbounded", "Geologica", ui-sans-serif, system-ui, sans-serif;
@@ -169,10 +179,61 @@ button:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* панель: только тон, без рамки и тени */
+@layer components {
+/* панель: непрозрачная поверхность (график, таблицы, /tg) */
 .panel {
   background: var(--surface);
   border-radius: var(--radius-panel);
+}
+
+/* плоский полупрозрачный слой — /tg (без backdrop-filter: слабые Android) */
+.layer {
+  background: var(--layer);
+  border-radius: var(--radius-panel);
+}
+
+/* стекло — лендинг и /app: полупрозрачная заливка, 1px светлая обводка, блик сверху */
+.glass {
+  position: relative;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-panel);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--surface); }
+}
+}
+
+/* фон с медленно плывущими пятнами (AmbientBg) */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient .blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+  animation: drift var(--dur, 30s) ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(var(--dx, 6vw), var(--dy, 4vh), 0) scale(1.08); }
+  100% { transform: translate3d(calc(var(--dx, 6vw) * -0.6), calc(var(--dy, 4vh) * 1.2), 0) scale(0.96); }
+}
+.ambient .grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient { display: none; }
 }
 
 /* скелетон */

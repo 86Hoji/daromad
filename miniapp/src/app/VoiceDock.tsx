@@ -19,7 +19,7 @@ export function VoiceDock() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="mb-2 flex items-start gap-2.5 rounded-el bg-surface px-4 py-3 text-[14px] text-ink-2 shadow-float"
+              className="mb-2 flex items-start gap-2.5 glass rounded-el px-4 py-3 text-[14px] text-ink-2"
               role="status"
             >
               <Info size={17} strokeWidth={1.75} className="mt-0.5 shrink-0 text-brand-text" />
@@ -31,7 +31,7 @@ export function VoiceDock() {
           )}
         </AnimatePresence>
 
-        <div className="flex items-center gap-3 rounded-full bg-surface p-2 pl-6 shadow-float">
+        <div className="flex items-center gap-3 glass rounded-full p-2 pl-6">
           {v.recording ? (
             <div className="flex h-12 flex-1 items-center gap-4" aria-live="polite">
               <span className="num text-[15px] font-medium text-neg-text">0:{String(v.seconds).padStart(2, "0")}</span>

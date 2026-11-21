@@ -21,7 +21,7 @@ export default function App() {
             inTelegram ? (
               <Navigate to="/tg" replace />
             ) : (
-              <Suspense fallback={<div className="min-h-dvh bg-night" />}>
+              <Suspense fallback={<div className="min-h-dvh bg-bg" />}>
                 <Landing />
               </Suspense>
             )

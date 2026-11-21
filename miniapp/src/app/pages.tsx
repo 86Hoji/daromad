@@ -41,7 +41,7 @@ function TrustLine({ share }: { share: Record<string, number> }) {
   return (
     <Link to="/app/hisobot" className="mt-auto flex items-center gap-4 rounded-el bg-surface/70 px-4 py-3 transition hover:bg-surface">
       <span className="flex h-2 w-28 shrink-0 gap-[2px] overflow-hidden rounded-full" aria-hidden>
-        <span className="rounded-full bg-pos" style={{ width: `${ok}%` }} />
+        <span className="rounded-full bg-ink" style={{ width: `${ok}%` }} />
         {shot > 0 && <span className="rounded-full bg-brand" style={{ width: `${shot}%` }} />}
         <span className="flex-1 rounded-full bg-surface-3" />
       </span>
@@ -82,7 +82,7 @@ export function AppHome() {
         <TrustLine share={summary.trust_share} />
       </section>
 
-      <div className="panel p-6 xl:p-7">
+      <div className="glass p-6 xl:p-7">
         <NextSteps rec={rec} forecast={forecast} />
       </div>
 
@@ -90,14 +90,14 @@ export function AppHome() {
         <ChartCard forecast={forecast} />
       </div>
 
-      <section className="panel p-6 xl:p-7" aria-labelledby="feed-title">
+      <section className="glass p-6 xl:p-7" aria-labelledby="feed-title">
         <PanelTitle right={<span className="text-[13px] text-ink-3">yangilari tepada</span>}>
           <span id="feed-title">Jonli lenta</span>
         </PanelTitle>
         <LiveFeed items={feed.items} fresh={feed.fresh} today={today} limit={6} />
       </section>
 
-      <section className="panel p-6 xl:p-7" aria-labelledby="debts-title">
+      <section className="glass p-6 xl:p-7" aria-labelledby="debts-title">
         <PanelTitle
           right={
             <Link to="/app/qarzlar" className="rounded-md text-[14px] font-medium text-brand-text hover:underline">
@@ -131,7 +131,7 @@ export function AppDebts() {
         <AnimatedNumber value={debts.total_receivable} className="display text-[48px] leading-none font-bold text-warn-text xl:text-[64px]" />
         <span className="text-[18px] text-ink-3">so'm sizga qarz</span>
       </div>
-      <section className="panel p-4 sm:p-6">
+      <section className="glass p-4 sm:p-6">
         <DebtTable debts={debts.debts} />
       </section>
       {closed.length > 0 && (
@@ -140,7 +140,7 @@ export function AppDebts() {
             {showClosed ? "Yopilganlarni yashirish" : `Yopilgan qarzlar (${closed.length})`}
           </button>
           {showClosed && (
-            <ul className="panel mt-3 divide-y divide-line px-6">
+            <ul className="glass mt-3 divide-y divide-line px-6">
               {closed.map((d) => (
                 <li key={d.id} className="flex justify-between py-3 text-[15px] text-ink-2">
                   <span>{d.person_name}</span>
@@ -186,14 +186,14 @@ export function AppReport() {
         )
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
-          <section className="panel p-6 xl:col-span-2 xl:p-7">
+          <section className="glass p-6 xl:col-span-2 xl:p-7">
             <Totals entries={entries} />
           </section>
-          <section className="panel p-6 xl:p-7">
+          <section className="glass p-6 xl:p-7">
             <PanelTitle>Xarajatlar toifalar bo'yicha</PanelTitle>
             <CategoryBars data={entries.by_category.expense} />
           </section>
-          <section className="panel p-6 xl:p-7">
+          <section className="glass p-6 xl:p-7">
             <PanelTitle>Ma'lumot ishonchliligi</PanelTitle>
             <TrustScale share={summary.trust_share} />
             <p className="mt-5 text-[14px] text-ink-3">AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz. Bank orqali o'tgan yozuvlar — tasdiqlangan.</p>

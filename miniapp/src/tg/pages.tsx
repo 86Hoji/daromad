@@ -28,7 +28,7 @@ function Header({ title }: { title?: string }) {
 }
 
 function Block({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`panel p-4 ${className}`}>{children}</section>;
+  return <section className={`layer p-4 ${className}`}>{children}</section>;
 }
 
 export function TgHome() {

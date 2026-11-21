@@ -49,9 +49,9 @@ export function CategoryBars({ data }: { data: Record<string, number> }) {
 }
 
 const TRUST = [
-  { key: "tasdiqlangan", label: "Tasdiqlangan", hint: "bank orqali", cls: "bg-pos" },
-  { key: "skrinshot", label: "Skrinshot", hint: "chek, ilova", cls: "bg-brand" },
-  { key: "so'zdan", label: "So'zdan", hint: "ovoz va matn", cls: "bg-surface-3" },
+  { key: "tasdiqlangan", label: "Tasdiqlangan", hint: "bank orqali", cls: "bg-ink" },
+  { key: "skrinshot", label: "Skrinshot", hint: "chek, ilova", cls: "bg-ink-3" },
+  { key: "so'zdan", label: "So'zdan", hint: "ovoz va matn", cls: "bg-ink-3/30" },
 ];
 
 export function TrustScale({ share }: { share: Record<string, number> }) {

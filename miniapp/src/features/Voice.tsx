@@ -24,8 +24,8 @@ export function MicButton({ v, size = 64, className = "" }: { v: VoiceInput; siz
       disabled={v.busy !== null && !v.recording}
       aria-label={v.recording ? "Yozishni to'xtatish va yuborish" : "Ovoz yozish"}
       aria-pressed={v.recording}
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full text-white shadow-float transition-colors duration-150 active:scale-95 disabled:opacity-60 ${
-        v.recording ? "bg-neg" : "bg-brand hover:bg-brand-hover"
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full shadow-float transition-colors duration-150 active:scale-95 disabled:opacity-60 ${
+        v.recording ? "bg-neg text-white" : "bg-brand text-brand-ink hover:bg-brand-hover"
       } ${className}`}
       style={{ width: size, height: size }}
     >
