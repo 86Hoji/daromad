@@ -100,6 +100,23 @@ def test_forecast_consistent_with_free_money(tmp_db):
     assert all(r["red"] == (r["balance"] < 0) for r in fc["forecast"])
 
 
+def test_forecast_band_low_high(tmp_db):
+    # будни 100k, но одна суббота назад продали 300k: разброс только у субботы
+    shop = make_shop(opening=0, sale=100_000, expense=0)
+    add_entry(shop, "sale", 200_000, "tovar", TODAY - timedelta(days=7))      # прошлая суббота: 300k
+    fc = logic.forecast(shop, days=14, today=TODAY)["forecast"]
+    first = fc[0]                                                             # воскресенье: ещё ничего не прогнозировали
+    assert first["low"] == first["balance"] == first["high"]
+    assert all(r["low"] <= r["balance"] <= r["high"] for r in fc)
+    sat = next(r for r in fc if r["date"] == (TODAY + timedelta(days=7)).isoformat())
+    after = fc[fc.index(sat) + 1]                                             # следующий день уже включает субботу
+    avg_sat = (300_000 + 3 * 100_000) / 4
+    assert after["high"] - after["balance"] == round(300_000 - avg_sat)
+    assert after["balance"] - after["low"] == round(avg_sat - 100_000)
+    # у будних дней разброса нет: до субботы полоса нулевая
+    assert sat["low"] == sat["balance"] == sat["high"]
+
+
 def test_recommendation_shortage_and_surplus(tmp_db):
     shop = make_shop(opening=-2_000_000)
     add_payment(shop, 400_000, THURSDAY)

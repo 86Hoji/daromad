@@ -124,15 +124,21 @@ class _Averages:
                 exps[r["date"]] = exps.get(r["date"], 0) + r["amount"]
         self.sales: dict[int, float] = {}
         self.expenses: dict[int, float] = {}
+        # разброс продаж по тем же дням недели — для полосы неопределённости прогноза
+        self.sales_min: dict[int, float] = {}
+        self.sales_max: dict[int, float] = {}
         for wd in range(7):
             back = (today.weekday() - wd) % 7 or 7  # ближайший прошлый такой день (не сегодня)
             days = [today - timedelta(days=back + 7 * k) for k in range(AVG_WEEKS)]
             days = [x for x in days if x >= start]
             if not days:
-                self.sales[wd] = 0.0
+                self.sales[wd] = self.sales_min[wd] = self.sales_max[wd] = 0.0
                 self.expenses[wd] = 0.0
                 continue
-            self.sales[wd] = sum(sales.get(x.isoformat(), 0) for x in days) / len(days)
+            day_sales = [sales.get(x.isoformat(), 0) for x in days]
+            self.sales[wd] = sum(day_sales) / len(days)
+            self.sales_min[wd] = float(min(day_sales))
+            self.sales_max[wd] = float(max(day_sales))
             self.expenses[wd] = sum(exps.get(x.isoformat(), 0) for x in days) / len(days)
 
     def net(self, d: date) -> float:
@@ -255,6 +261,7 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
 
     out = []
     flows_so_far = 0
+    dev_low = dev_high = 0.0  # накопленное отклонение продаж от среднего: худший / лучший сценарий
     morning_base = cash  # остаток к утру дня d без учёта платежей
     paid_so_far = sum(p["amount"] for p in pend if _d(p["due_date"]) <= today)
     for i in range(1, days + 1):
@@ -268,6 +275,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
             "date": d.isoformat(),
             "weekday": WEEKDAYS_UZ[d.weekday()],
             "balance": int(round(balance)),
+            "low": int(round(balance + dev_low)),
+            "high": int(round(balance + dev_high)),
             "expected_sales": int(round(avg.sales[d.weekday()])),
             "expected_expenses": int(round(avg.expenses[d.weekday()])),
             "events": [{"id": p["id"], "type": "scheduled_payment", "title": p["title"],
@@ -276,6 +285,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
             "red": balance < 0,
         })
         morning_base += avg.net(d)
+        dev_low += avg.sales_min[d.weekday()] - avg.sales[d.weekday()]
+        dev_high += avg.sales_max[d.weekday()] - avg.sales[d.weekday()]
 
     events = [
         {"id": p["id"], "date": p["due_date"], "type": "scheduled_payment", "title": p["title"],
