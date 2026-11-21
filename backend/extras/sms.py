@@ -219,3 +219,47 @@ def _send_eskiz(number: str, text: str) -> dict:
         log.error("Eskiz SMS failed: %s", exc)
         return {"status": "failed", "provider": "eskiz", "id": None, "error": str(exc)[:200]}
     return {"status": "failed", "provider": "eskiz", "id": None, "error": "unauthorized"}
+
+
+def eskiz_check() -> dict:
+    """Проверить логин в Eskiz без отправки SMS."""
+    global _eskiz_token
+    try:
+        with _http_client() as client:
+            _eskiz_token = _eskiz_login(client)
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+# --- CLI (запуск из backend/) ----------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    """python -m extras.sms --check                         # логин в Eskiz
+       python -m extras.sms --to 998901234567 --text "..."   # отправка в текущем режиме SMS_PROVIDER"""
+    import argparse
+    ap = argparse.ArgumentParser(prog="python -m extras.sms")
+    ap.add_argument("--check", action="store_true", help="проверить логин Eskiz")
+    ap.add_argument("--to", help="номер получателя")
+    ap.add_argument("--text", help="текст SMS")
+    args = ap.parse_args(argv)
+    if args.check:
+        r = eskiz_check()
+        print("Eskiz login: OK" if r["ok"] else f"Eskiz login: ERROR {r['error']}")
+        return 0 if r["ok"] else 1
+    if not args.to or not args.text:
+        ap.print_help()
+        return 2
+    try:
+        r = send_sms(args.to, args.text)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        return 2
+    print(json.dumps(r, ensure_ascii=False))
+    return 0 if r["status"] == "sent" else 1
+
+
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    sys.exit(main())

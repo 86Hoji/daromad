@@ -252,3 +252,29 @@ def test_eskiz_without_credentials_fails_without_request(monkeypatch):
 def test_eskiz_login_without_token_fails(monkeypatch):
     eskiz(monkeypatch, lambda req, calls: httpx.Response(200, json={"data": {}}))
     assert sms.send_sms("901234567", "a")["status"] == "failed"
+
+
+# --- CLI ------------------------------------------------------------------------------
+
+def test_cli_check_ok(monkeypatch, capsys):
+    calls = eskiz(monkeypatch, ok_handler)
+    assert sms.main(["--check"]) == 0
+    assert "OK" in capsys.readouterr().out and [c.url.path for c in calls] == ["/api/auth/login"]
+
+
+def test_cli_check_bad_password(monkeypatch, capsys):
+    eskiz(monkeypatch, lambda req, calls: httpx.Response(401, json={"message": "Invalid"}))
+    assert sms.main(["--check"]) == 1 and "ERROR" in capsys.readouterr().out
+
+
+def test_cli_send_mock(capsys):
+    assert sms.main(["--to", "+998 90 123 45 67", "--text", "Salom"]) == 0
+    assert json.loads(capsys.readouterr().out)["provider"] == "mock" and len(sms.read_outbox()) == 1
+
+
+def test_cli_send_bad_phone(capsys):
+    assert sms.main(["--to", "123", "--text", "Salom"]) == 2 and sms.read_outbox() == []
+
+
+def test_cli_without_args_shows_help(capsys):
+    assert sms.main([]) == 2
