@@ -5,7 +5,8 @@ import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Deposit, type Forecast, type Overdraft, type Recommendation } from "../lib/api";
 import { useLive } from "../lib/live";
-import { capitalize, ddmm, money, moneyShort, untilLabel } from "../lib/format";
+import { capitalize, ddmm, money, moneyShort, untilLabel, weekday } from "../lib/format";
+import { isOutflow } from "../chart/MoneyLine";
 import { haptic } from "../lib/telegram";
 import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
@@ -166,7 +167,11 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
       </Step>
     );
   } else {
+    // «всё в порядке» — не пустая панель: самая низкая точка и ближайшие платежи
+    const upcoming = (forecast?.events ?? []).slice(0, tg ? 2 : 3);
+    const low = forecast?.forecast.length ? forecast.forecast.reduce((m, d) => (d.balance < m.balance ? d : m)) : null;
     body = (
+      <>
       <div className="flex items-start gap-3 rounded-el bg-pos-soft p-4 text-pos-text">
         <ShieldCheck size={22} strokeWidth={1.75} className="shrink-0" />
         <div>
@@ -177,6 +182,31 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
           </div>
         </div>
       </div>
+      {low && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-el bg-surface-2/70 px-4 py-3 text-[15px]">
+          <span className="text-ink-2">Eng past qoldiq · {weekday(low.date)}</span>
+          <span className="num font-semibold">{money(low.balance)}</span>
+        </div>
+      )}
+      {upcoming.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-1 text-[13px] text-ink-3">Yaqin to'lovlar</div>
+          <ul className="divide-y divide-line">
+            {upcoming.map((e) => (
+              <li key={`${e.id}-${e.date}`} className="flex items-center justify-between gap-3 py-2.5 text-[15px]">
+                <span className="min-w-0 truncate">
+                  <span className="num text-ink-3">{ddmm(e.date)}</span> · {e.title}
+                </span>
+                <span className={`num shrink-0 font-medium ${isOutflow(e) ? "" : "text-pos-text"}`}>
+                  {isOutflow(e) ? "−" : "+"}
+                  {moneyShort(Math.abs(e.amount))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      </>
     );
   }
 

@@ -22,16 +22,39 @@ backend/
   db.py          SQLite (backend/data/daromad.db)
   seed.py        демо-данные «Dilshod Biznes»
   tests/         pytest
-miniapp/         Telegram Mini App «Hisobim»: Vite + React + TypeScript + Tailwind + Recharts
-  src/screens/   Bosh (главная), Qarzlar (долги), Hisobot (отчёт), Pay (/pay/:token)
-  src/components/ график «Pul chizig'i», шаги 1 → 2, поле ввода с микрофоном, листы подтверждения
-  src/lib/       API-клиент, Telegram WebApp, живое обновление, запись голоса в WAV
+miniapp/         одно Vite-приложение: React + TypeScript + Tailwind 4 + Recharts + motion + Lenis
+  src/landing/   лендинг «/»: hero-сцена, scrollytelling «Qanday ishlaydi», песочница, доверие, банкам
+  src/app/       дашборд «/app» (десктоп): стеклянные панели, голосовой оверлей
+  src/tg/        Telegram Mini App «/tg»: плоские слои, нижние табы, микрофон
+  src/features/  общие блоки: Bo'sh pul, Pul chizig'i, Keyingi qadam, долги, отчёт, карточки «Yozib oldim»
+  src/screens/   страница оплаты /pay/:token
+  src/ui/        Liquid-фон, Odometer, кнопки, листы; src/lib/ — API, Telegram WebApp, fx (spotlight, магнит, Lenis)
   vercel.json    SPA-rewrites для деплоя
 ```
 
-![Дашборд /app, 1440px](docs/screenshots/app-1440-light.png)
+| Маршрут | Что это |
+|---|---|
+| `/` | лендинг для жюри и владельцев бизнеса |
+| `/app` | десктопный дашборд (демо-бизнес в браузере) |
+| `/tg` | Telegram Mini App — сюда указывает `WEBAPP_URL` |
+| `/pay/:token` | страница оплаты долга по ссылке (демо) |
 
-<img src="docs/screenshots/app-1440-dark.png" width="720" alt="Дашборд /app, тёмная тема">
+![Лендинг, hero](docs/screenshots/landing-hero-light.jpg)
+
+<img src="docs/screenshots/landing-story.jpg" width="49%" alt="Scrollytelling «Qanday ishlaydi»"> <img src="docs/screenshots/landing-sandbox.jpg" width="49%" alt="Песочница, тёмная тема">
+
+<img src="docs/screenshots/app-1440-light.jpg" width="49%" alt="Дашборд /app"> <img src="docs/screenshots/app-1440-dark.jpg" width="49%" alt="Дашборд /app, тёмная тема">
+
+<img src="docs/screenshots/tg-390-light.jpg" width="24%" alt="Mini App /tg"> <img src="docs/screenshots/tg-390-dark.jpg" width="24%" alt="Mini App /tg, тёмная тема">
+
+Видео: [hero-анимация лендинга](docs/media/hero.webm) · [ввод в /app: оверлей → карточки → подтверждение](docs/media/app-voice.webm)
+(во втором видео используется текстовый ввод того же оверлея — headless-браузер без микрофона).
+
+**Визуальная система.** Монохром (графит / серебро / белый), бирюза и гранат — только для смысла (плюс / минус).
+Лендинг и `/app`: живой «жидкий» фон (canvas, 6 размытых пятен, параллакс курсора, зерно), стекло с градиентной кромкой
+и spotlight за курсором, магнитные кнопки, одометр для чисел, плавный скролл Lenis; анимируются только transform/opacity.
+`/tg`: та же палитра и реакции, но без backdrop-filter и анимированного фона — плоские полупрозрачные слои.
+`prefers-reduced-motion` делает всё статичным; без поддержки backdrop-filter стекло становится непрозрачным.
 
 ## Установка (Windows)
 
@@ -61,7 +84,7 @@ pip install -r backend\requirements.txt
 | `BOT_TOKEN` | токен бота от @BotFather |
 | `GEMINI_API_KEY` | ключ Google AI Studio |
 | `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`. Для новых ключей Google `*-latest` и `gemini-2.5-flash` недоступны — ставьте `gemini-3.8-flash`. Если модель не найдена (404) или перегружена (503/таймаут 25 с), код сам переходит по цепочке `gemini-3.8-flash` → `gemini-3.5-flash-lite`, а упавшую модель пропускает 5 минут |
-| `WEBAPP_URL` | https-адрес Mini App (фаза 2), даёт кнопку-меню «Hisobim»; можно оставить пустым |
+| `WEBAPP_URL` | https-адрес Mini App **с путём `/tg`** (например `https://<проект>.vercel.app/tg`), даёт кнопку-меню «Hisobim»; можно оставить пустым |
 | `DEV_SHOP_ID` | бизнес для API без Telegram-заголовка (демо), по умолчанию `1` |
 
 Без `BOT_TOKEN` поднимается только API; без `GEMINI_API_KEY` не работает распознавание (бот отвечает понятной ошибкой).
@@ -166,7 +189,9 @@ npm --prefix miniapp install
 npm --prefix miniapp run dev
 ```
 
-Откройте http://localhost:5173. Адрес API берётся из `VITE_API_URL` (по умолчанию `http://localhost:8000`, пример — `miniapp/.env.example`).
+Откройте http://localhost:5173 (лендинг), http://localhost:5173/app (дашборд) или http://localhost:5173/tg (Mini App).
+Адрес API берётся из `VITE_API_URL` (по умолчанию `http://localhost:8000`), ссылка «Telegram'da ochish» — из `VITE_BOT_URL`
+(по умолчанию `https://t.me/daromad_hoji_test_bot`); пример — `miniapp/.env.example`.
 
 ```powershell
 npm --prefix miniapp run build
@@ -195,9 +220,9 @@ cloudflared tunnel --url http://localhost:8000
 
 ### Подключение к боту
 
-1. В `backend/.env` укажите `WEBAPP_URL=https://<ваш-проект>.vercel.app` и перезапустите бэкенд — у бота появится кнопка «Hisobim».
+1. В `backend/.env` укажите `WEBAPP_URL=https://<ваш-проект>.vercel.app/tg` и перезапустите бэкенд — у бота появится кнопка «Hisobim».
 2. Кнопка меню в @BotFather: `/mybots` → ваш бот → **Bot Settings** → **Menu Button** → **Configure menu button** →
-   отправьте URL Mini App → название `Hisobim`.
+   отправьте URL Mini App (`…/tg`) → название `Hisobim`.
 3. Откройте бота в Telegram и нажмите «Hisobim». Если бизнес ещё не подключён, сначала `/start` → «🧪 Demo biznesni ulash».
 
 Ссылки на эндпоинты напоминаний (`/api/debts/{id}/remind`) и оплаты (`/api/pay/{token}`) Mini App вызывает, но в бэкенде их пока нет:
