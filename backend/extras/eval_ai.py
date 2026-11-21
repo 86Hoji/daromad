@@ -34,6 +34,7 @@ AUDIO_MIME = {".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".
               ".mp3": "audio/mp3", ".m4a": "audio/aac", ".aac": "audio/aac", ".flac": "audio/flac",
               ".aiff": "audio/aiff"}
 PAUSE_SECONDS = 1.0          # между запросами, чтобы не упереться в лимит бесплатного уровня
+MAIN_AI_TIMEOUT = 30         # основной ai.py сам не ограничивает ожидание; на одну модель
 
 
 # --- примеры ----------------------------------------------------------------------------
@@ -186,9 +187,9 @@ async def _main_ai(models: list[str], **kwargs) -> dict:
     for m in models:
         config.GEMINI_MODEL = m
         try:
-            return await ai.parse_input(**kwargs)
-        except ai.AIUnavailable as exc:
-            last = exc
+            return await asyncio.wait_for(ai.parse_input(**kwargs), MAIN_AI_TIMEOUT)
+        except (ai.AIUnavailable, asyncio.TimeoutError) as exc:
+            last = exc if str(exc) else f"{m}: timeout"
             logging.getLogger("extras.eval").warning("model %s failed, trying next", m)
     raise RuntimeError(f"all models failed: {last}")
 
@@ -216,7 +217,8 @@ def default_runner() -> Runner:
     return run
 
 
-async def run_eval(cases: list[dict], today: date, runner: Runner, pause: float = PAUSE_SECONDS) -> list[dict]:
+async def run_eval(cases: list[dict], today: date, runner: Runner, pause: float | None = None) -> list[dict]:
+    pause = PAUSE_SECONDS if pause is None else pause
     rows = []
     for i, case in enumerate(cases):
         if i and pause:

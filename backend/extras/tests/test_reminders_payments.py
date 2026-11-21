@@ -1,4 +1,5 @@
 """Этап 4: напоминания, токены оплаты, API dev_app — без сети, SMS в mock."""
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -257,3 +258,127 @@ def test_reminder_reports_eskiz_test_mode(monkeypatch):
 
 def test_reminder_mock_is_not_test_mode():
     assert reminders.send_reminder(ALISHER, now=T0)["sms_test_mode"] is False
+
+
+# --- регрессии после ревью ---------------------------------------------------------------
+
+@pytest.mark.parametrize("raw,masked", [("998901234567", "+99890 *** ** 67"), ("+998901234567", "+99890 *** ** 67"),
+                                        ("+998 90 123-45-67", "+99890 *** ** 67"), (None, None), ("", None),
+                                        ("12", "***")])
+def test_mask_phone_handles_plus_format(raw, masked):
+    assert reminders.mask_phone(raw) == masked          # основной бэк хранит номера как +998...
+
+
+def test_main_backend_phone_format_works_end_to_end():
+    adapters._debts[ALISHER]["phone"] = "+998901234567"
+    r = reminders.send_reminder(ALISHER, now=T0)
+    assert r["phone"] == "+99890 *** ** 67" and sms.read_outbox()[0]["phone"] == "998901234567"
+
+
+def test_link_too_long_does_not_block_debt(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://" + "a" * 120 + ".example.com")
+    p = reminders.preview_reminder(ALISHER, now=T0)
+    assert p["can_send"] is False and p["reason"] == "link_too_long" and p["text"] is None
+    assert code_of(reminders.send_reminder, ALISHER, now=T0) == "link_too_long"
+    assert payments.load_tokens() == {} and sms.read_outbox() == []
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://localhost:8001")
+    assert reminders.send_reminder(ALISHER, now=T0)["status"] == "sent"      # не too_soon
+
+
+def test_unexpected_send_crash_removes_token(monkeypatch):
+    def boom(phone, text):
+        raise OSError("disk full")
+    monkeypatch.setattr(sms, "send_sms", boom)
+    with pytest.raises(OSError):
+        reminders.send_reminder(ALISHER, now=T0)
+    assert payments.load_tokens() == {}
+
+
+@pytest.mark.parametrize("record", [{"debt_id": 1}, {"expires_at": "2026-11-28 10:00:00"}, "junk", None,
+                                    {"debt_id": 1, "expires_at": "not a date"}])
+def test_broken_token_record_is_not_found(record):
+    payments.TOKENS_PATH.write_text(json.dumps({"abc": record}), encoding="utf-8")
+    assert code_of(payments.get_payment, "abc", now=T0) == "not_found"
+    assert code_of(payments.confirm_payment, "abc", now=T0) == "not_found"
+
+
+def test_concurrent_reminders_send_one_sms():
+    from concurrent.futures import ThreadPoolExecutor
+
+    def go(_):
+        try:
+            return reminders.send_reminder(ALISHER, now=T0)["status"]
+        except ExtrasError as e:
+            return e.code
+    with ThreadPoolExecutor(8) as ex:
+        results = list(ex.map(go, range(8)))
+    assert results.count("sent") == 1 and results.count("too_soon") == 7
+    assert len(sms.read_outbox()) == 1
+
+
+def test_concurrent_confirm_charges_once():
+    from concurrent.futures import ThreadPoolExecutor
+    tok = _sent_token()
+    with ThreadPoolExecutor(8) as ex:
+        results = list(ex.map(lambda _: payments.confirm_payment(tok, now=T0)["already_paid"], range(8)))
+    assert results.count(False) == 1 and len(adapters.payments) == 1
+
+
+def test_tokens_file_written_atomically_no_tmp_left():
+    payments.create_token(ALISHER, T0)
+    assert not payments.TOKENS_PATH.with_suffix(".tmp").exists()
+
+
+# --- API: доступ, маска, CORS, дата ------------------------------------------------------
+
+def test_admin_token_protects_owner_and_dev_routes(client, monkeypatch):
+    monkeypatch.setenv("EXTRAS_ADMIN_TOKEN", "s3cret-admin")
+    for method, path in [("post", f"/api/debts/{ALISHER}/remind/preview"), ("post", f"/api/debts/{ALISHER}/remind"),
+                         ("get", "/api/dev/debts"), ("post", "/api/dev/reset")]:
+        r = getattr(client, method)(path)
+        assert r.status_code == 401 and r.json()["error"] == "unauthorized", path
+        r = getattr(client, method)(path, headers={"X-Admin-Token": "wrong"})
+        assert r.status_code == 401, path
+    assert sms.read_outbox() == []
+    r = client.post(f"/api/debts/{ALISHER}/remind", headers={"X-Admin-Token": "s3cret-admin"})
+    assert r.status_code == 200
+    tok = token_from(r.json()["pay_url"])
+    assert client.get(f"/pay/{tok}").status_code == 200                 # должнику ключ не нужен
+    assert client.post(f"/api/pay/{tok}/confirm").status_code == 200
+
+
+def test_dev_debts_masks_phones(client):
+    phones = [d["phone"] for d in client.get("/api/dev/debts").json()["debts"]]
+    assert phones == ["+99890 *** ** 67", "+99890 *** ** 21", None]
+    assert adapters.get_debt(ALISHER)["phone"] == "998901234567"         # данные не испорчены маской
+
+
+def test_cors_allows_mini_app(client):
+    r = client.options(f"/api/debts/{ALISHER}/remind", headers={
+        "Origin": "https://web.telegram.org", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "x-admin-token"})
+    assert r.status_code == 200 and r.headers.get("access-control-allow-origin") in ("*", "https://web.telegram.org")
+
+
+def test_pay_page_shows_human_date(client):
+    tok = token_from(client.post(f"/api/debts/{ALISHER}/remind").json()["pay_url"])
+    exp = payments.load_tokens()[tok]["expires_at"]
+    human = datetime.strptime(exp, payments.TIME_FMT).strftime("%d.%m.%Y %H:%M")
+    assert human in client.get(f"/pay/{tok}").text
+
+
+def test_api_link_too_long(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://" + "a" * 120 + ".example.com")
+    assert client.post(f"/api/debts/{ALISHER}/remind/preview").json()["reason"] == "link_too_long"
+    r = client.post(f"/api/debts/{ALISHER}/remind")
+    assert r.status_code == 500 and r.json()["error"] == "link_too_long"
+
+
+def test_env_example_has_no_secrets():
+    """В .env.example (он в git) — только пустые ключи и безопасные значения по умолчанию."""
+    from pathlib import Path
+    text = (Path(payments.__file__).parent / ".env.example").read_text(encoding="utf-8")
+    values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line and not line.startswith("#"))
+    for key in ("GEMINI_API_KEY", "ESKIZ_EMAIL", "ESKIZ_PASSWORD", "EXTRAS_ADMIN_TOKEN"):
+        assert values.get(key, "") == "", f"{key} must be empty in .env.example"
+    assert values["SMS_PROVIDER"] == "mock"

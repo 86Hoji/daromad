@@ -10,6 +10,7 @@
     no_consent  — должник не давал согласия на SMS
     too_soon    — напоминание по этому долгу уже было меньше 3 дней назад
     sms_failed  — провайдер не отправил SMS (токен удаляется, попытка не считается)
+    link_too_long — PUBLIC_BASE_URL слишком длинный: ссылка не влезает в одно SMS (ошибка настройки)
 """
 from __future__ import annotations
 
@@ -23,9 +24,11 @@ PREVIEW_TOKEN = "x" * 43            # такой же длины, как secrets
 
 
 def mask_phone(phone: str | None) -> str | None:
-    if not phone:
+    """'998901234567' или '+998 90 123-45-67' -> '+99890 *** ** 67'."""
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    if not digits:
         return None
-    return f"+{phone[:5]} *** ** {phone[-2:]}" if len(phone) >= 7 else "***"
+    return f"+{digits[:5]} *** ** {digits[-2:]}" if len(digits) >= 7 else "***"
 
 
 def _last_reminder(debt_id: int) -> datetime | None:
@@ -66,7 +69,12 @@ def preview_reminder(debt_id: int, now: datetime | None = None) -> dict:
     if debt is None:
         raise ExtrasError("not_found", "debt not found")
     reason = _check(debt, now)
-    text = _text(debt, payments.pay_url(PREVIEW_TOKEN)) if debt["remaining"] > 0 else None
+    text = None
+    if debt["remaining"] > 0:
+        try:
+            text = _text(debt, payments.pay_url(PREVIEW_TOKEN))
+        except ValueError:
+            reason = reason or "link_too_long"
     last = _last_reminder(debt_id)
     return {"debt_id": debt_id, "text": text, "phone": mask_phone(debt.get("phone")),
             "can_send": reason is None, "reason": reason,
@@ -83,8 +91,15 @@ def send_reminder(debt_id: int, now: datetime | None = None) -> dict:
         token = payments.create_token(debt_id, now)
 
     url = payments.pay_url(token)
-    text = _text(debt, url)
-    result = sms.send_sms(debt["phone"], text)
+    try:
+        text = _text(debt, url)
+        result = sms.send_sms(debt["phone"], text)
+    except ValueError as exc:                  # ссылка не влезла в SMS: токен не должен блокировать долг на 3 дня
+        payments.delete_token(token)
+        raise ExtrasError("link_too_long", str(exc)) from exc
+    except Exception:
+        payments.delete_token(token)
+        raise
     if result.get("status") != "sent":
         payments.delete_token(token)
         adapters.add_audit(debt["shop_id"], "owner", "debt_reminder_failed",

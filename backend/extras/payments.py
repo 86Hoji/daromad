@@ -5,7 +5,7 @@
     get_payment(token) -> {shop_name, person_name, amount, status, ...}   # что видит должник
     confirm_payment(token) -> {...}                 # закрывает остаток долга; повтор не списывает дважды
 
-Ошибки — ExtrasError(code): not_found, token_expired, debt_closed.
+Ошибки — ExtrasError(code): not_found, token_expired, debt_closed (битая запись токена = not_found).
 Оплата пока демо (кнопка на странице); при подключении Click/Payme confirm_payment
 вызывается из их callback после успешного платежа.
 """
@@ -32,7 +32,7 @@ class ExtrasError(Exception):
     """Ошибка с кодом для API: код уходит клиенту, HTTP-статус берётся из STATUS."""
 
     STATUS = {"not_found": 404, "token_expired": 410, "debt_closed": 409, "no_phone": 422,
-              "no_consent": 403, "too_soon": 429, "sms_failed": 502}
+              "no_consent": 403, "too_soon": 429, "sms_failed": 502, "link_too_long": 500, "unauthorized": 401}
 
     def __init__(self, code: str, detail: str = ""):
         super().__init__(code)
@@ -112,12 +112,16 @@ def tokens_for_debt(debt_id: int) -> list[dict]:
 
 def _get_valid(token: str, now: datetime) -> tuple[dict, dict]:
     rec = load_tokens().get(token or "")
-    if rec is None:
+    if not isinstance(rec, dict) or not {"debt_id", "expires_at"} <= rec.keys():
         raise ExtrasError("not_found", "link not found")
     debt = adapters.get_debt(rec["debt_id"])
     if debt is None:
         raise ExtrasError("not_found", "debt not found")
-    if rec.get("paid_at") is None and now > _parse(rec["expires_at"]):
+    try:
+        expires = _parse(rec["expires_at"])
+    except (TypeError, ValueError):
+        raise ExtrasError("not_found", "link not found") from None
+    if rec.get("paid_at") is None and now > expires:
         raise ExtrasError("token_expired", "link expired")
     return rec, debt
 

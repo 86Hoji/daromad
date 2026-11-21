@@ -143,3 +143,47 @@ def test_main_filters_and_writes_report(monkeypatch, tmp_path, capsys):
     assert rep["summary"]["passed"] == 2 and rep["summary"]["total"] == 2
     assert "Итого: 2/2" in capsys.readouterr().out
     assert eval_ai.main(["--ids", "nope"]) == 2
+
+
+def test_run_eval_pause_default_read_at_call_time(monkeypatch):
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+    monkeypatch.setattr(eval_ai, "PAUSE_SECONDS", 0.25)
+    monkeypatch.setattr(eval_ai.asyncio, "sleep", fake_sleep)
+
+    async def fake(c, today):
+        return {"intent": "record", "events": c["events"]}
+    asyncio.run(eval_ai.run_eval([case([], id="a"), case([], id="b")], TODAY, fake))
+    assert slept == [0.25]
+
+
+def test_main_ai_timeout_falls_back_to_next_model(monkeypatch):
+    import ai
+    import config
+    used = []
+
+    async def slow_then_ok(**kw):
+        used.append(config.GEMINI_MODEL)
+        if config.GEMINI_MODEL == "slow":
+            await asyncio.sleep(5)
+        return {"intent": "record", "events": [], "transcript": "ok"}
+    monkeypatch.setattr(ai, "parse_input", slow_then_ok)
+    monkeypatch.setattr(eval_ai, "MAIN_AI_TIMEOUT", 0.05)
+    monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
+    r = asyncio.run(eval_ai._main_ai(["slow", "fast"], text="x"))
+    assert r["transcript"] == "ok" and used == ["slow", "fast"]
+
+
+def test_main_ai_all_models_timeout_is_error(monkeypatch):
+    import ai
+    import config
+
+    async def slow(**kw):
+        await asyncio.sleep(5)
+    monkeypatch.setattr(ai, "parse_input", slow)
+    monkeypatch.setattr(eval_ai, "MAIN_AI_TIMEOUT", 0.02)
+    monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
+    with pytest.raises(RuntimeError, match="timeout"):
+        asyncio.run(eval_ai._main_ai(["m1", "m2"], text="x"))
