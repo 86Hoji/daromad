@@ -29,11 +29,14 @@ export function FreeMoney({
   rec,
   today,
   size = "app",
+  roll = false,
 }: {
   summary: Summary;
   rec: Recommendation | null;
   today: string;
   size?: "app" | "tg";
+  /** цифра прокручивается одометром при появлении */
+  roll?: boolean;
 }) {
   const neg = summary.free_money < 0;
   const big = size === "app";
@@ -44,10 +47,10 @@ export function FreeMoney({
         Bo'sh pul · {untilLabel(summary.horizon, today)}, {ddmm(summary.horizon)}
       </div>
       <div
-        className={`display mt-3 flex items-baseline gap-[0.18em] leading-[0.95] font-bold ${neg ? "text-neg-text" : "text-ink"}`}
-        style={{ fontSize: heroSize(summary.free_money, big ? 132 : 54, big ? 40 : 34) }}
+        className={`display mt-4 flex items-baseline gap-[0.18em] leading-none font-bold ${neg ? "text-neg-text" : "text-ink"}`}
+        style={{ fontSize: heroSize(summary.free_money, big ? 96 : 54, big ? 44 : 34) }}
       >
-        <AnimatedNumber value={summary.free_money} />
+        <AnimatedNumber value={summary.free_money} roll={roll} />
         <span className="font-sans text-[0.28em] font-medium tracking-normal text-ink-3">so'm</span>
       </div>
       <p className={`mt-4 max-w-[52ch] text-ink-2 ${big ? "text-[18px]" : "text-[15px]"}`}>{explain(summary, rec, today)}</p>
@@ -65,9 +68,9 @@ export function Formula({ summary }: { summary: Summary }) {
     { label: "Bo'sh pul", v: moneyShort(summary.free_money), op: "=", cls: summary.free_money < 0 ? "text-neg-text" : "text-pos-text" },
   ];
   return (
-    <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+    <div className="flex flex-wrap items-end gap-x-3.5 gap-y-3">
       {parts.map((p) => (
-        <div key={p.label} className="flex items-end gap-4">
+        <div key={p.label} className="flex items-end gap-3.5">
           {p.op && (
             <span className="display pb-1 text-[22px] font-medium text-ink-3" aria-hidden>
               {p.op}
@@ -79,7 +82,7 @@ export function Formula({ summary }: { summary: Summary }) {
           </div>
         </div>
       ))}
-      <div className="ml-auto border-l border-line pl-5">
+      <div className="ml-auto border-l border-line pl-4">
         <div className="text-[13px] text-ink-3">Sizga qarz</div>
         <div className="num text-[19px] font-semibold text-warn-text">{moneyShort(summary.total_receivable)}</div>
       </div>

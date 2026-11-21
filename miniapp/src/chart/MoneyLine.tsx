@@ -1,6 +1,7 @@
 // «Pul chizig'i»: остаток по дням. Без сглаживания (stepAfter), прошлое — сплошная линия,
 // будущее — пунктир Lapis + полоса неопределённости (low/high), всё ниже нуля — Pomegranate.
 // События — «булавки» под осью X: крупнейшее подписано всегда, остальные — точки с тултипом.
+import { useReducedMotion } from "motion/react";
 import { useMemo } from "react";
 import {
   Area,
@@ -65,13 +66,18 @@ export function MoneyLine({
   height = 340,
   compact = false,
   className = "",
+  animate = false,
 }: {
   data: Forecast;
   height?: number;
   compact?: boolean;
   className?: string;
+  /** линия рисуется слева направо при появлении; при смене данных зоны перетекают */
+  animate?: boolean;
 }) {
   const pal = usePalette();
+  const reduceMotion = useReducedMotion();
+  const anim = animate && !reduceMotion;
 
   const points = useMemo<Point[]>(() => {
     const hist: Point[] = data.history.map((h) => {
@@ -143,7 +149,7 @@ export function MoneyLine({
   const off = Math.min(1, Math.max(0, (zeroY - plotTop) / (plotBottom - plotTop || 1)));
 
   return (
-    <div role="img" aria-label={summary} className={`w-full select-none ${className}`} style={{ height }}>
+    <div role="img" aria-label={summary} className={`w-full select-none ${anim ? "ml-draw" : ""} ${className}`} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={points} margin={{ top: MARGIN_TOP, right: compact ? 8 : 16, bottom: 0, left: 0 }}>
           <defs>
@@ -192,9 +198,9 @@ export function MoneyLine({
           />
 
           {/* полоса неопределённости — под всем остальным */}
-          <Area type="stepAfter" dataKey="band" stroke="none" fill={pal.band} fillOpacity={0.13} isAnimationActive={false} activeDot={false} connectNulls={false} />
+          <Area type="stepAfter" dataKey="band" stroke="none" fill={pal.band} fillOpacity={0.13} isAnimationActive={anim} animationBegin={900} animationDuration={900} animationEasing="ease-out" activeDot={false} connectNulls={false} />
           {/* красная зона: всё, что ниже нуля */}
-          <Area type="stepAfter" dataKey="v" baseValue={0} stroke="none" fill="url(#ml-red)" isAnimationActive={false} activeDot={false} />
+          <Area type="stepAfter" dataKey="v" baseValue={0} stroke="none" fill="url(#ml-red)" isAnimationActive={anim} animationBegin={1300} animationDuration={1000} animationEasing="ease-in-out" activeDot={false} />
 
           <ReferenceLine y={0} stroke={pal.ink3} strokeOpacity={0.55} strokeWidth={1} />
           <ReferenceLine
@@ -214,8 +220,8 @@ export function MoneyLine({
             }}
           />
 
-          <Line type="stepAfter" dataKey="fact" stroke="url(#ml-past)" strokeWidth={compact ? 2 : 2.5} dot={false} activeDot={{ r: 4, fill: pal.surface, stroke: pal.past, strokeWidth: 2 }} connectNulls={false} isAnimationActive={false} />
-          <Line type="stepAfter" dataKey="plan" stroke="url(#ml-future)" strokeWidth={compact ? 2 : 2.5} strokeDasharray="6 5" dot={false} activeDot={{ r: 4, fill: pal.surface, stroke: pal.future, strokeWidth: 2 }} connectNulls={false} isAnimationActive={false} />
+          <Line className="ml-fact" type="stepAfter" dataKey="fact" stroke="url(#ml-past)" strokeWidth={compact ? 2 : 2.5} dot={false} activeDot={{ r: 4, fill: pal.surface, stroke: pal.past, strokeWidth: 2 }} connectNulls={false} isAnimationActive={false} />
+          <Line className="ml-plan" type="stepAfter" dataKey="plan" stroke="url(#ml-future)" strokeWidth={compact ? 2 : 2.5} strokeDasharray="6 5" dot={false} activeDot={{ r: 4, fill: pal.surface, stroke: pal.future, strokeWidth: 2 }} connectNulls={false} isAnimationActive={false} />
 
           <Customized component={(props: CustomizedProps) => <Pins {...props} pins={pins} low={low} pal={pal} plotBottom={plotBottom} compact={compact} />} />
 

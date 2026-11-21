@@ -7,7 +7,7 @@ import { LiveProvider, useLive } from "../lib/live";
 import { useLenis, useSpotlight } from "../lib/fx";
 import { LiquidBg } from "../ui/Liquid";
 import { Chip, LiveDot, Logo, ThemeToggle } from "../ui/bits";
-import { VoiceDock } from "./VoiceDock";
+import { VoiceOverlay } from "./VoiceOverlay";
 
 const NAV = [
   { to: "/app", label: "Bosh", icon: Home, end: true },
@@ -110,12 +110,12 @@ export function AppLayout() {
           <Sidebar />
           <TopNav />
           {/* резерв снизу под голосовой док: контент никогда не уходит под него */}
-          <main className="relative z-10 px-4 pt-4 pb-[calc(132px+env(safe-area-inset-bottom))] sm:px-6 xl:ml-[248px] xl:px-10 xl:pt-8">
+          <main className="relative z-10 px-4 pt-4 pb-[calc(116px+env(safe-area-inset-bottom))] sm:px-6 xl:ml-[248px] xl:px-10 xl:pt-8">
             <div className="mx-auto max-w-[960px] xl:max-w-[1320px]">
               <Outlet />
             </div>
           </main>
-          <VoiceDock />
+          <VoiceOverlay />
         </div>
       </ReminderProvider>
     </LiveProvider>

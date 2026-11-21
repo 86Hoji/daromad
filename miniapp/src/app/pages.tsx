@@ -12,6 +12,7 @@ import { useLive } from "../lib/live";
 import { ddmm, money } from "../lib/format";
 import { AnimatedNumber } from "../ui/AnimatedNumber";
 import { ErrorState, Segmented, Skeleton } from "../ui/bits";
+import { Rise } from "../ui/Rise";
 
 function PageTitle({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
   return (
@@ -39,7 +40,7 @@ function TrustLine({ share }: { share: Record<string, number> }) {
   const ok = Math.round((share["tasdiqlangan"] ?? 0) * 100);
   const shot = Math.round((share["skrinshot"] ?? 0) * 100);
   return (
-    <Link to="/app/hisobot" className="mt-auto flex items-center gap-4 rounded-el bg-surface/70 px-4 py-3 transition hover:bg-surface">
+    <Link to="/app/hisobot" className="flex items-center gap-4 rounded-el bg-surface-2/70 px-4 py-3 transition hover:bg-surface-2">
       <span className="flex h-2 w-28 shrink-0 gap-[2px] overflow-hidden rounded-full" aria-hidden>
         <span className="rounded-full bg-ink" style={{ width: `${ok}%` }} />
         {shot > 0 && <span className="rounded-full bg-brand" style={{ width: `${shot}%` }} />}
@@ -75,29 +76,33 @@ export function AppHome() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:gap-7">
-      {/* цифра — прямо на фоне, без панели: она главная */}
-      <section className="flex flex-col gap-9 py-2 xl:pr-4" aria-label="Bo'sh pul">
-        <FreeMoney summary={summary} rec={rec} today={today} />
-        <Formula summary={summary} />
-        <TrustLine share={summary.trust_share} />
-      </section>
+      <Rise i={0} as="section" className="glass lift-2 flex flex-col p-7 xl:p-8" >
+        <h2 className="sr-only">Bo'sh pul</h2>
+        <FreeMoney summary={summary} rec={rec} today={today} roll />
+        <div className="mt-8">
+          <Formula summary={summary} />
+        </div>
+        <div className="mt-auto pt-8">
+          <TrustLine share={summary.trust_share} />
+        </div>
+      </Rise>
 
-      <div className="glass p-6 xl:p-7">
+      <Rise i={1} className="glass lift-2 p-6 xl:p-7">
         <NextSteps rec={rec} forecast={forecast} />
-      </div>
+      </Rise>
 
-      <div className="xl:col-span-2">
-        <ChartCard forecast={forecast} />
-      </div>
+      <Rise i={2} className="xl:col-span-2">
+        <ChartCard forecast={forecast} animate />
+      </Rise>
 
-      <section className="glass p-6 xl:p-7" aria-labelledby="feed-title">
+      <Rise i={3} as="section" id="feed-panel" className="glass lift-1 p-6 xl:p-7">
         <PanelTitle right={<span className="text-[13px] text-ink-3">yangilari tepada</span>}>
           <span id="feed-title">Jonli lenta</span>
         </PanelTitle>
         <LiveFeed items={feed.items} fresh={feed.fresh} today={today} limit={6} />
-      </section>
+      </Rise>
 
-      <section className="glass p-6 xl:p-7" aria-labelledby="debts-title">
+      <Rise i={4} as="section" className="glass lift-1 p-6 xl:p-7">
         <PanelTitle
           right={
             <Link to="/app/qarzlar" className="rounded-md text-[14px] font-medium text-brand-text hover:underline">
@@ -108,11 +113,11 @@ export function AppHome() {
           <span id="debts-title">Qarzlar</span>
         </PanelTitle>
         <div className="mb-2 flex items-baseline gap-2">
-          <AnimatedNumber value={summary.total_receivable} className="display text-[30px] font-semibold text-warn-text" />
+          <AnimatedNumber value={summary.total_receivable} roll className="display text-[30px] font-semibold text-warn-text" />
           <span className="text-[14px] text-ink-3">so'm · {debts?.open_count ?? summary.top_debtors.length} ta mijoz</span>
         </div>
         {debts ? <DebtList debts={debts.debts} limit={5} /> : <Skeleton className="h-40" />}
-      </section>
+      </Rise>
     </div>
   );
 }

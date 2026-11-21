@@ -30,11 +30,24 @@ function Legend({ compact }: { compact?: boolean }) {
   );
 }
 
-export function ChartCard({ forecast, compact = false, height }: { forecast: Forecast | null; compact?: boolean; height?: number }) {
+export function ChartCard({
+  forecast,
+  compact = false,
+  height,
+  animate = false,
+  surface,
+}: {
+  forecast: Forecast | null;
+  compact?: boolean;
+  height?: number;
+  animate?: boolean;
+  /** подложка: плотное стекло (/app), плоский слой (/tg) */
+  surface?: string;
+}) {
   const h = height ?? (compact ? 244 : 380);
   const status = forecast ? chartStatus(forecast) : null;
   return (
-    <section className={`panel ${compact ? "p-4 pb-2" : "p-6 pb-3 xl:p-7 xl:pb-4"}`} aria-labelledby="chart-title">
+    <section className={`${surface ?? (compact ? "layer" : "glass glass-dense lift-1")} ${compact ? "p-4 pb-2" : "p-6 pb-3 xl:p-7 xl:pb-4"}`} aria-labelledby="chart-title">
       <div className={`flex flex-wrap items-end justify-between gap-x-6 gap-y-2 ${compact ? "mb-1" : "mb-3"}`}>
         <div>
           <h2 id="chart-title" className={`font-semibold tracking-tight ${compact ? "text-[16px]" : "text-[18px]"}`}>
@@ -44,7 +57,7 @@ export function ChartCard({ forecast, compact = false, height }: { forecast: For
         </div>
         {!compact && <Legend />}
       </div>
-      {forecast ? <MoneyLine data={forecast} height={h} compact={compact} /> : <ChartSkeleton height={h} />}
+      {forecast ? <MoneyLine data={forecast} height={h} compact={compact} animate={animate} /> : <ChartSkeleton height={h} />}
     </section>
   );
 }

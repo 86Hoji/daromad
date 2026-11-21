@@ -36,10 +36,10 @@ export function LiveFeed({ items, fresh, today, limit = 8 }: { items: Entry[] | 
             <motion.li
               key={e.id}
               layout={!reduce}
-              initial={reduce ? false : { opacity: 0, y: -14 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reduce ? false : { opacity: 0, y: -28, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
+              transition={{ type: "spring", stiffness: 260, damping: 24 }}
               className={`flex items-center gap-3 rounded-el px-3 py-2.5 transition-colors duration-700 ${isNew ? "bg-brand-soft" : ""}`}
             >
               <span

@@ -59,6 +59,7 @@
   --elev-3: 0 4px 8px rgb(23 24 28 / 0.05), 0 40px 80px -20px rgb(23 24 28 / 0.28);
   --shine: rgb(255 255 255 / 0.35);
   --layer: rgb(255 255 255 / 0.78);
+  --veil: rgb(240 239 235 / 0.55);
 
   /* живой фон: база + пятна (серебро, графит, белый, тень бирюзы и граната) */
   --liq-base: #e9e8e4;
@@ -125,6 +126,7 @@
   --elev-3: 0 4px 8px rgb(0 0 0 / 0.3), 0 44px 90px -20px rgb(0 0 0 / 0.7);
   --shine: rgb(14 15 18 / 0.18);
   --layer: rgb(255 255 255 / 0.045);
+  --veil: rgb(14 15 18 / 0.6);
 
   --liq-base: #0e0f12;
   --liq-1: #3a3d44;
@@ -289,6 +291,7 @@ button:focus:not(:focus-visible) {
    Кнопки: блик, пробегающий при hover; нажатие с пружиной. Магнит — useMagnet
    (свойство translate), нажатие — свойство scale: они не конфликтуют.
    ------------------------------------------------------------------------- */
+@layer components {
 .btn-fx {
   position: relative;
   overflow: hidden;
@@ -308,6 +311,7 @@ button:focus:not(:focus-visible) {
 .btn-fx:hover::after {
   translate: 130% 0;
   transition: translate 0.9s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
 }
 
 /* ---------------------------------------------------------------------------
@@ -407,4 +411,30 @@ button:focus:not(:focus-visible) {
 .on-night {
   background: var(--bg);
   color: var(--ink);
+}
+
+/* полноэкранная стеклянная вуаль (голосовой оверлей /app) */
+.veil {
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  backdrop-filter: blur(30px) saturate(150%);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .veil { background: var(--bg); }
+}
+
+/* «Pul chizig'i» рисуется слева направо: факт, затем прогноз; метки событий проявляются последними */
+@keyframes ml-reveal {
+  from { clip-path: inset(-20px 100% -20px -20px); }
+  to { clip-path: inset(-20px -20px -20px -20px); }
+}
+@keyframes ml-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ml-draw .ml-fact { animation: ml-reveal 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.35s both; }
+.ml-draw .ml-plan { animation: ml-reveal 1.1s cubic-bezier(0.33, 0, 0.2, 1) 1.55s both; }
+.ml-draw .recharts-customized-wrapper { animation: ml-fade 0.5s ease-out 2.3s both; }
+@media (prefers-reduced-motion: reduce) {
+  .ml-draw .ml-fact, .ml-draw .ml-plan, .ml-draw .recharts-customized-wrapper { animation: none; }
 }
