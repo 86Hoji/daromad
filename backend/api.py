@@ -10,7 +10,7 @@ import hmac
 import json
 import time
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
@@ -216,3 +216,32 @@ def confirm(body: IdsIn, shop: dict = Depends(current_shop)) -> dict:
 @router.post("/entries/reject")
 def reject(body: IdsIn, shop: dict = Depends(current_shop)) -> dict:
     return {"rejected": pipeline.reject(shop["id"], ids=body.ids)}
+
+
+# --- банковские офферы (mock-банк) --------------------------------------------------
+
+class OfferIn(BaseModel):
+    type: Literal["overdraft", "deposit"]
+    amount: int = Field(gt=0)
+    term_days: int | None = Field(default=None, ge=1, le=365)
+
+
+@router.post("/offers/accept")
+def offers_accept(body: OfferIn, shop: dict = Depends(current_shop)) -> dict:
+    """Принять оффер: offers(accepted) + cash_flows (logic учитывает их в прогнозе) + audit_log."""
+    try:
+        res = pipeline.accept_offer(shop["id"], body.type, body.amount, body.term_days)
+    except pipeline.OfferConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    res["recommendation"] = rounded(logic.recommendation(shop["id"]))
+    return res
+
+
+@router.post("/offers/decline")
+def offers_decline(body: OfferIn, shop: dict = Depends(current_shop)) -> dict:
+    try:
+        return pipeline.decline_offer(shop["id"], body.type, body.amount, body.term_days)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

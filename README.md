@@ -18,11 +18,20 @@ backend/
   uz_numbers.py  детерминированный парсер сумм ("2 million 300 ming", "bir yarim million", "1,5 mln")
   pipeline.py    общий конвейер бота и API: ИИ → валидация → черновики → подтверждение
   logic.py       free_money, forecast, recommendation (только код, без ИИ)
-  api.py         REST API /api/* для будущего Mini App
+  api.py         REST API /api/* для Mini App
   db.py          SQLite (backend/data/daromad.db)
   seed.py        демо-данные «Dilshod Biznes»
   tests/         pytest
+miniapp/         Telegram Mini App «Hisobim»: Vite + React + TypeScript + Tailwind + Recharts
+  src/screens/   Bosh (главная), Qarzlar (долги), Hisobot (отчёт), Pay (/pay/:token)
+  src/components/ график «Pul chizig'i», шаги 1 → 2, поле ввода с микрофоном, листы подтверждения
+  src/lib/       API-клиент, Telegram WebApp, живое обновление, запись голоса в WAV
+  vercel.json    SPA-rewrites для деплоя
 ```
+
+| Мобильная (390px) | Десктоп |
+|---|---|
+| <img src="docs/screenshots/home-mobile-light.jpg" width="260"> <img src="docs/screenshots/home-mobile-dark.jpg" width="260"> | <img src="docs/screenshots/home-desktop-light.png" width="520"><br><img src="docs/screenshots/home-desktop-dark.png" width="520"> |
 
 ## Установка (Windows)
 
@@ -84,9 +93,12 @@ cd backend; python -m pytest -q
 
 ```
 свободные = остаток сейчас + ожидаемые продажи − ожидаемые обычные расходы − платежи (pending, срок ≤ горизонт)
+            + будущие денежные потоки (срок ≤ горизонт)
 ```
 
-- остаток = opening_cash + продажи − расходы + возвращённые долги (выдача в долг остаток не меняет);
+- остаток = opening_cash + продажи − расходы + возвращённые долги + денежные потоки на сегодня (выдача в долг остаток не меняет);
+- денежные потоки (`cash_flows`) — движения вне прибыли: выдача и возврат овердрафта, вклад и его возврат с процентами,
+  изъятия владельца (`owner_draw`, ими seed держит историю остатка ≥ 0). Прибыль они не меняют, остаток и прогноз — меняют;
 - ожидание на день = среднее за последние 4 таких же дня недели; учитываются дни с завтрашнего по день перед платежом (сегодня — факт, платёж уходит утром);
 - аренда (`ijara`) и оплаченные плановые платежи в «обычные» расходы не входят;
 - горизонт = ближайший pending платёж, иначе +7 дней;
@@ -115,10 +127,82 @@ curl -X POST localhost:8000/api/voice -F "audio=@voice.ogg;type=audio/ogg"
 # подтвердить / отклонить черновики
 curl -X POST localhost:8000/api/entries/confirm -H "Content-Type: application/json" -d '{"ids":[1,2,3]}'
 curl -X POST localhost:8000/api/entries/reject  -H "Content-Type: application/json" -d '{"ids":[4]}'
+
+# банковский оффер (демо): принять / отклонить
+curl -X POST localhost:8000/api/offers/accept  -H "Content-Type: application/json" -d '{"type":"overdraft","amount":400000}'
+curl -X POST localhost:8000/api/offers/decline -H "Content-Type: application/json" -d '{"type":"overdraft","amount":400000}'
 ```
 
 В PowerShell используйте `curl.exe` вместо `curl`.
 
+`/offers/accept` пересчитывает условия кодом (сумму клиент не может «подкрутить» в стоимость) и пишет денежные потоки:
+овердрафт — `+сумма` сегодня и `−(сумма + проценты)` в день возврата; вклад — наоборот. Срок овердрафта считается **от сегодня**:
+первый день после платежа, начиная с которого прогноз уже не опускается ниже суммы возврата. Второй овердрафт, пока не погашен
+первый, — `409`. Каждое решение пишется в журнал (`offer_accepted` / `offer_declined`). Кнопки оффера в боте идут по тому же пути.
+
+## Mini App (фаза 2)
+
+Одна цифра «Bo'sh pul», график «Pul chizig'i» (факт → «Bugun» → пунктир прогноза, красная зона ниже нуля),
+шаги «1. напомнить должникам → 2. овердрафт», ввод голосом или текстом с подтверждением «To'g'ri / Tuzatish»,
+долги с напоминаниями, отчёт за неделю / месяц и журнал действий. Данные обновляются каждые 5 секунд и после каждого действия.
+
+Два режима:
+
+- **в Telegram** — приложение шлёт `X-Telegram-Init-Data`, бэкенд проверяет подпись и находит бизнес пользователя;
+- **в обычном браузере** — демо-режим (бейдж «demo»), запросы без заголовка, бизнес `DEV_SHOP_ID`.
+
+Микрофон пишет WAV 16 кГц моно. Если браузер или WebView не даёт микрофон (нужен https или localhost), появляется подсказка
+«Ovozli xabarni botga yuboring».
+
+### Запуск локально
+
+Нужен Node.js 20+. Бэкенд должен работать на `:8000` (см. «Запуск»).
+
+```powershell
+npm --prefix miniapp install
+```
+
+```powershell
+npm --prefix miniapp run dev
+```
+
+Откройте http://localhost:5173. Адрес API берётся из `VITE_API_URL` (по умолчанию `http://localhost:8000`, пример — `miniapp/.env.example`).
+
+```powershell
+npm --prefix miniapp run build
+```
+
+### Бэкенд наружу: cloudflared
+
+Telegram открывает Mini App только по https, и приложению на Vercel нужен публичный адрес API. Быстрый туннель
+(установка: `winget install Cloudflare.cloudflared`):
+
+```powershell
+cloudflared tunnel --url http://localhost:8000
+```
+
+Он печатает адрес вида `https://<random>.trycloudflare.com` — это ваш `VITE_API_URL`. Адрес меняется при каждом запуске
+быстрого туннеля; для постоянного адреса нужен именованный туннель в аккаунте Cloudflare. CORS на бэкенде открыт.
+
+### Деплой на Vercel
+
+1. Vercel → **Add New → Project** → импортируйте репозиторий.
+2. **Root Directory**: `miniapp` (framework Vite определится сам, `vercel.json` уже содержит SPA-rewrites, поэтому `/pay/<token>` и вкладки открываются напрямую).
+3. **Environment Variables**: `VITE_API_URL` = адрес туннеля (без `/` в конце).
+4. **Deploy**. При смене адреса туннеля обновите переменную и сделайте **Redeploy** — Vite вшивает её при сборке.
+
+Или из консоли: `npx vercel --cwd miniapp` (переменную добавить через `npx vercel env add VITE_API_URL`).
+
+### Подключение к боту
+
+1. В `backend/.env` укажите `WEBAPP_URL=https://<ваш-проект>.vercel.app` и перезапустите бэкенд — у бота появится кнопка «Hisobim».
+2. Кнопка меню в @BotFather: `/mybots` → ваш бот → **Bot Settings** → **Menu Button** → **Configure menu button** →
+   отправьте URL Mini App → название `Hisobim`.
+3. Откройте бота в Telegram и нажмите «Hisobim». Если бизнес ещё не подключён, сначала `/start` → «🧪 Demo biznesni ulash».
+
+Ссылки на эндпоинты напоминаний (`/api/debts/{id}/remind`) и оплаты (`/api/pay/{token}`) Mini App вызывает, но в бэкенде их пока нет:
+на `404` приложение показывает демо-превью SMS и демо-страницу оплаты (`/pay/demo`), ничего не отправляя.
+
 ## Не в этой фазе
 
-Фронтенд (`miniapp/` — фаза 2), распознавание фото (фаза 3), реальные SMS / платежи / банк.
+Распознавание фото (фаза 3), реальные SMS / платежи / банк, эндпоинты напоминаний и оплаты по ссылке.

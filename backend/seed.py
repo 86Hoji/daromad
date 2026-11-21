@@ -2,13 +2,12 @@
 
     python seed.py --reset    # пересоздать демо-бизнес (DEV_SHOP_ID), идемпотентно
 
-opening_cash подбирается так, чтобы к ближайшему четвергу (платёж Akmal 3 000 000)
-свободные деньги были ровно −350 000 (logic.free_money линейна по opening_cash).
+Изъятия владельца (owner_draw) подбираются так, чтобы к ближайшему четвергу (платёж Akmal 3 000 000)
+свободные деньги были ровно −350 000, а фактический остаток в истории оставался положительным.
 """
 from __future__ import annotations
 
 import argparse
-import math
 import random
 from datetime import date, timedelta
 
@@ -22,7 +21,9 @@ TARGET_FREE = -350_000
 AKMAL_AMOUNT = 3_000_000
 RENT = 2_500_000
 WEEKLY_PAY = 600_000
-OPENING_TARGET = 1_500_000   # желаемый стартовый остаток денег 30 дней назад
+OPENING = 2_000_000          # стартовый остаток 30 дней назад
+DRAW_WEEKDAYS = (2, 6)       # среда и воскресенье
+MIN_KEEP = 300_000           # ниже этого фактический остаток в истории не опускается
 
 DEBTS = [  # (имя, сумма, дней назад, телефон, согласие на SMS)
     ("Alisher", 450_000, 21, "+998901234567", True),
@@ -48,7 +49,8 @@ def wipe(shop_id: int) -> int | None:
     shop = db.get_shop(shop_id)
     tg_user_id = shop["tg_user_id"] if shop else None
     with db.connect() as conn:
-        for table in ("debt_payments", "drafts", "entries", "debts", "scheduled_payments", "offers", "audit_log"):
+        for table in ("debt_payments", "drafts", "entries", "debts", "scheduled_payments", "cash_flows", "offers",
+                      "audit_log"):
             conn.execute(f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
         conn.execute("DELETE FROM shops WHERE id=?", (shop_id,))
     return tg_user_id
@@ -124,24 +126,46 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             "VALUES (?,?,?,?,?,?, 'pending')",
             (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, thu.isoformat(), "voice"))
 
-    # Подбор opening_cash: free_money линейна по нему, нужно opening − one_off = TARGET_FREE − base.
-    # Прибыльный бизнес 30 дней назад имел меньше денег, поэтому, чтобы opening был положительным,
-    # в первый день истории — разовая покупка оборудования. Этот день вне окна средних
-    # (окно = последние 4 таких же дня недели = today−28..today−1), прогноз она не трогает.
+    # Калибровка. Прибыльный бизнес 30 дней назад имел бы меньше денег, чем сейчас, поэтому владелец
+    # по средам, воскресеньям и вчера вечером забирает часть денег домой (owner_draw: вне P&L, прибыль не уменьшает).
+    # Сумма изъятий подбирается так, чтобы к четвергу было ровно TARGET_FREE (free_money линейна по остатку),
+    # а фактический остаток в истории не опускался ниже MIN_KEEP.
+    db.execute("UPDATE shops SET opening_cash=? WHERE id=?", (OPENING, shop_id))
     base = logic.free_money(shop_id, today=today)["free_money"]
-    needed = TARGET_FREE - base
-    one_off = max(0, int(math.ceil((OPENING_TARGET - needed) / 100_000)) * 100_000)
-    if one_off:
-        db.execute(
-            "INSERT INTO entries (shop_id, kind, amount, category, note, date, source, status, is_scheduled, created_at) "
-            "VALUES (?, 'expense', ?, 'boshqa', 'muzlatgich-vitrina (bir martalik)', ?, 'bank', 'confirmed', 0, ?)",
-            (shop_id, one_off, start.isoformat(), ts(start, "12:00:00")))
-    opening = needed + one_off
-    db.execute("UPDATE shops SET opening_cash=? WHERE id=?", (opening, shop_id))
-    db.audit(shop_id, "system", "seed", {"opening_cash": opening, "one_off": one_off, "today": today.isoformat()})
+    to_draw = base - TARGET_FREE
+    opening = OPENING
+    if to_draw < 0:                       # денег не хватает даже без изъятий — поднимаем стартовый остаток
+        opening -= to_draw
+        to_draw = 0
+        db.execute("UPDATE shops SET opening_cash=? WHERE id=?", (opening, shop_id))
+
+    days = [start + timedelta(days=i) for i in range((today - start).days + 1)]
+    cash = {d: logic.cash_on(shop_id, d) for d in days}          # без изъятий
+    yesterday = today - timedelta(days=1)
+    sundays = [d for d in days if (d.weekday() in DRAW_WEEKDAYS or d == yesterday) and d < today]
+    draws: dict[date, int] = {}
+    left = to_draw
+    for sunday in sundays:
+        if left <= 0:
+            break
+        taken = sum(draws.values())
+        # сколько можно забрать, чтобы ни в один день после этого остаток не упал ниже MIN_KEEP
+        room = min(cash[d] - taken for d in days if d >= sunday) - MIN_KEEP
+        amount = min(left, max(0, int(room // 100_000) * 100_000))
+        if amount:
+            draws[sunday] = amount
+            left -= amount
+    if left and sundays:                  # остаток — в последнее воскресенье (тест проверит, что истории хватило)
+        draws[sundays[-1]] = draws.get(sundays[-1], 0) + left
+    for d, amount in draws.items():
+        db.execute("INSERT INTO cash_flows (shop_id, offer_id, kind, amount, date, note, created_at) "
+                   "VALUES (?, NULL, 'owner_draw', ?, ?, 'egasi uyga oldi', ?)",
+                   (shop_id, -amount, d.isoformat(), ts(d, "21:00:00")))
+    db.audit(shop_id, "system", "seed", {"opening_cash": opening, "owner_draws": sum(draws.values()),
+                                         "today": today.isoformat()})
 
     fm = logic.free_money(shop_id, today=today)
-    return {**fm, "opening_cash": opening, "one_off": one_off}
+    return {**fm, "opening_cash": opening, "owner_draws": sum(draws.values())}
 
 
 def main() -> None:

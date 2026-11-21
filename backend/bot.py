@@ -99,8 +99,8 @@ def card_text(result: dict) -> str:
     if result["errors"]:
         lines.append("")
         lines += [f"❗ {esc(e)}" for e in result["errors"]]
-    if result.get("transcript"):
-        lines.append(f"\n<i>«{esc(result['transcript'])}»</i>")
+    # сырую расшифровку не показываем: в ней бывают ошибки вида «150000 ming»,
+    # а список выше — уже нормализованные события с суммами из кода
     return "\n".join(lines)
 
 
@@ -322,8 +322,6 @@ async def run_pipeline(message: Message, *, text: str | None = None, audio: byte
         return
     if not result["drafts"]:
         msg = "\n".join(f"❗ {esc(e)}" for e in result["errors"])
-        if result.get("transcript"):
-            msg += f"\n\n<i>«{esc(result['transcript'])}»</i>"
         await wait.edit_text(msg + "\n\nIltimos, aniqroq qilib qayta yuboring.")
         return
     await wait.edit_text(card_text(result), reply_markup=kb(
@@ -470,8 +468,21 @@ async def cb_offer(cq: CallbackQuery) -> None:
     await cq.answer()
     if not row:
         return
-    if row["status"] == "accepted":
-        note = "✅ Ariza qabul qilindi (demo: bank bilan integratsiya keyingi bosqichda)."
+    if row.get("error"):
+        note = f"❗ {esc(row['error'])}"
+    elif row["status"] == "accepted" and row.get("result"):
+        r = row["result"]
+        when = datetime.strptime(r["end_date"], "%Y-%m-%d").strftime("%d.%m")
+        if r["type"] == "overdraft":
+            note = (f"✅ {r['bank']}: {money(r['amount'])} so'm hisobingizga tushdi, "
+                    f"{when} gacha {money(r['amount'] + r['cost'])} so'm qaytariladi.")
+        else:
+            note = (f"✅ {r['bank']}: {money(r['amount'])} so'm omonatga qo'yildi, "
+                    f"{when} da {money(r['amount'] + r['income'])} so'm qaytadi.")
+        fm = logic.free_money(shop["id"])
+        note += f"\n{day_label(fm['horizon'])} bo'sh pul: <b>{money(fm['free_money'])} so'm</b>."
+    elif row["status"] == "accepted":
+        note = "Bu taklif allaqachon qabul qilingan."
     else:
         note = "Rad etildi."
     await cq.message.edit_text(cq.message.html_text + f"\n\n{note}", reply_markup=None)

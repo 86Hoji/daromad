@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* ---- токены: холодный белый / глубокий графит, два смысловых цвета ---- */
+:root {
+  --bg: #f2f4f7;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --line: #e3e7ed;
+  --ink: #0b1220;
+  --ink-2: #566173;
+  --ink-3: #8a93a3;
+  --pos: #079455;        /* хватает */
+  --pos-soft: #e7f6ee;
+  --neg: #e5252a;        /* не хватает */
+  --neg-soft: #fdecec;
+  --btn: #0b1220;
+  --btn-ink: #ffffff;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c0e11;
+  --surface: #14171b;
+  --surface-2: #1a1e23;
+  --line: #262b32;
+  --ink: #f1f3f6;
+  --ink-2: #a0a8b5;
+  --ink-3: #6b7380;
+  --pos: #17c47a;
+  --pos-soft: rgba(23, 196, 122, 0.12);
+  --neg: #ff4d4f;
+  --neg-soft: rgba(255, 77, 79, 0.13);
+  --btn: #f1f3f6;
+  --btn-ink: #0c0e11;
+  --shadow: none;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-btn: var(--btn);
+  --color-btn-ink: var(--btn-ink);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.hairline {
+  border-color: var(--line);
+}
+
+/* нижний лист: анимация только при открытии/закрытии */
+.sheet-enter {
+  animation: sheet-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fade-enter {
+  animation: fade-in 0.2s ease-out;
+}
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* короткая подсветка цифры после изменения */
+.bump {
+  animation: bump 0.6s ease-out;
+}
+@keyframes bump {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.025); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-enter, .fade-enter, .bump { animation: none; }
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.recharts-wrapper,
+.recharts-surface {
+  outline: none;
+}

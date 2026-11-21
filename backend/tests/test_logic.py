@@ -167,6 +167,10 @@ def test_seed_gives_350k_shortage_by_thursday(tmp_db):
     assert 3_000_000 <= month <= 5_000_000
     fc = logic.forecast(1, days=14, today=TODAY)["forecast"]
     assert [r["date"] for r in fc if r["red"]] == [THURSDAY.isoformat()]
+    # фактический остаток в истории никогда не был отрицательным (изъятия владельца вне P&L)
+    history = [logic.cash_on(1, TODAY - timedelta(days=i)) for i in range(31)]
+    assert min(history) >= 0
+    assert fm["owner_draws"] > 0
     # идемпотентность
     fm2 = seed.seed(reset=True, today=TODAY, shop_id=1)
     assert fm2["free_money"] == -350_000

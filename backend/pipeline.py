@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import ai
 import db
@@ -270,15 +270,101 @@ def save_offer(shop_id: int, offer: dict) -> int:
     return oid
 
 
-def set_offer_status(shop_id: int, offer_id: int, accepted: bool) -> dict | None:
+class OfferConflict(Exception):
+    """Уже есть активный овердрафт — второй не выдаём."""
+
+
+OVERDRAFT_MAX_AMOUNT = 50_000_000
+BANK_OK = "Bank tasdiqladi (demo)"
+
+
+def build_offer(offer_type: str, amount: int, term_days: int | None = None) -> dict:
+    """Пересчитать оффер по константам logic: клиенту доверяем только тип, сумму и срок."""
+    if offer_type == "overdraft":
+        if not (0 < amount <= OVERDRAFT_MAX_AMOUNT):
+            raise ValueError(f"Overdraft summasi 1 dan {OVERDRAFT_MAX_AMOUNT:,} so'mgacha bo'lishi kerak.")
+        return logic.overdraft_offer(amount, term_days or logic.OVERDRAFT["max_days"])
+    if offer_type == "deposit":
+        if not (0 < amount < MAX_AMOUNT):
+            raise ValueError("Omonat summasi noto'g'ri.")
+        return logic.deposit_offer(int(amount))
+    raise ValueError(f"Noma'lum taklif turi: {offer_type!r}")
+
+
+def _active_overdraft(shop_id: int, today: date) -> dict | None:
+    return db.query_one("SELECT * FROM cash_flows WHERE shop_id=? AND kind='overdraft_repay' AND date>=?",
+                        (shop_id, today.isoformat()))
+
+
+def _apply_offer(shop_id: int, offer_id: int, offer: dict, today: date) -> dict:
+    """Записать денежные потоки принятого оффера — logic учитывает их в остатке и прогнозе."""
+    now, d0 = db.now_str(), today.isoformat()
+    end = (today + timedelta(days=offer["term_days"])).isoformat()
+    if offer["type"] == "overdraft":
+        flows = [("overdraft_in", offer["amount"], d0), ("overdraft_repay", -(offer["amount"] + offer["cost"]), end)]
+    else:
+        flows = [("deposit_out", -offer["amount"], d0), ("deposit_return", offer["amount"] + offer["income"], end)]
+    for kind, amount, day in flows:
+        db.execute("INSERT INTO cash_flows (shop_id, offer_id, kind, amount, date, note, created_at) VALUES (?,?,?,?,?,?,?)",
+                   (shop_id, offer_id, kind, amount, day, offer["name"], now))
+    return {"start_date": d0, "end_date": end,
+            "flows": [{"kind": k, "amount": a, "date": d} for k, a, d in flows]}
+
+
+def _insert_offer(shop_id: int, offer: dict, status: str) -> int:
+    value = offer.get("cost") if offer["type"] == "overdraft" else offer.get("income")
+    return db.execute(
+        "INSERT INTO offers (shop_id, type, amount, term_days, cost_or_income, risk_text, status, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (shop_id, offer["type"], offer["amount"], offer["term_days"], int(value or 0),
+         offer.get("risk_text") or offer.get("early_withdrawal"), status, db.now_str()))
+
+
+def _accept(shop_id: int, offer_id: int, offer: dict, today: date) -> dict:
+    if offer["type"] == "overdraft" and _active_overdraft(shop_id, today):
+        raise OfferConflict("Sizda faol overdraft bor — avval uni qaytaring.")
+    applied = _apply_offer(shop_id, offer_id, offer, today)
+    db.execute("UPDATE offers SET status='accepted' WHERE id=?", (offer_id,))
+    fm = logic.free_money(shop_id, today=today)
+    result = {"status": "accepted", "offer_id": offer_id, "bank": BANK_OK, **offer, **applied,
+              "free_money_after": fm["free_money"], "horizon": fm["horizon"]}
+    db.audit(shop_id, "owner", "offer_accepted", result)
+    return result
+
+
+def accept_offer(shop_id: int, offer_type: str, amount: int, term_days: int | None = None,
+                 today: date | None = None) -> dict:
+    """API: принять оффер (mock-банк сразу «tasdiqladi»). ValueError / OfferConflict."""
+    today = today or date.today()
+    offer = build_offer(offer_type, int(amount), term_days)
+    if offer["type"] == "overdraft" and _active_overdraft(shop_id, today):
+        raise OfferConflict("Sizda faol overdraft bor — avval uni qaytaring.")
+    oid = _insert_offer(shop_id, offer, "proposed")
+    return _accept(shop_id, oid, offer, today)
+
+
+def decline_offer(shop_id: int, offer_type: str, amount: int, term_days: int | None = None) -> dict:
+    offer = build_offer(offer_type, int(amount), term_days)
+    oid = _insert_offer(shop_id, offer, "declined")
+    db.audit(shop_id, "owner", "offer_declined", {"offer_id": oid, **offer})
+    return {"status": "declined", "offer_id": oid, "type": offer["type"]}
+
+
+def set_offer_status(shop_id: int, offer_id: int, accepted: bool, today: date | None = None) -> dict | None:
+    """Бот: принять/отклонить ранее показанный оффер. Принятие — тем же путём, что и в API."""
     row = db.query_one("SELECT * FROM offers WHERE id=? AND shop_id=?", (offer_id, shop_id))
     if not row or row["status"] != "proposed":
         return row
-    status = "accepted" if accepted else "declined"
-    db.execute("UPDATE offers SET status=? WHERE id=?", (status, offer_id))
-    db.audit(shop_id, "owner", f"offer_{status}", {"offer_id": offer_id})
-    row["status"] = status
-    return row
+    if accepted:
+        offer = build_offer(row["type"], row["amount"], row["term_days"])
+        try:
+            res = _accept(shop_id, offer_id, offer, today or date.today())
+        except OfferConflict as exc:
+            return {**row, "error": str(exc)}
+        return {**row, "status": "accepted", "result": res}
+    db.execute("UPDATE offers SET status='declined' WHERE id=?", (offer_id,))
+    db.audit(shop_id, "owner", "offer_declined", {"offer_id": offer_id})
+    return {**row, "status": "declined"}
 
 
 # --- вопросы: цифры считает код, ИИ только формулирует -----------------------------

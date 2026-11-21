@@ -90,7 +90,9 @@ def cash_on(shop_id: int, day: date) -> int:
         "AND status='confirmed' AND date<=?", (shop_id, d))
     returned = db.scalar(
         "SELECT COALESCE(SUM(amount),0) FROM debt_payments WHERE shop_id=? AND date<=?", (shop_id, d))
-    return int(shop["opening_cash"] + sales - expenses + returned)
+    flows = db.scalar(
+        "SELECT COALESCE(SUM(amount),0) FROM cash_flows WHERE shop_id=? AND date<=?", (shop_id, d))
+    return int(shop["opening_cash"] + sales - expenses + returned + flows)
 
 
 def _shop_start(shop_id: int) -> date:
@@ -143,6 +145,26 @@ def _pending_payments(shop_id: int) -> list[dict]:
         (shop_id,))
 
 
+FLOW_TITLES = {
+    "overdraft_in": "Overdraft tushumi",
+    "overdraft_repay": "Overdraftni qaytarish",
+    "deposit_out": "Omonatga o'tkazish",
+    "deposit_return": "Omonat qaytishi",
+    "owner_draw": "Egasi oldi",
+}
+
+
+def _future_flows(shop_id: int, today: date) -> list[dict]:
+    """Будущие потоки офферов (овердрафт/вклад). Как и платежи, учитываются утром дня date."""
+    return db.query("SELECT * FROM cash_flows WHERE shop_id=? AND date>? ORDER BY date, id",
+                    (shop_id, today.isoformat()))
+
+
+def _flow_event(f: dict) -> dict:
+    return {"id": f["id"], "date": f["date"], "type": f["kind"], "title": FLOW_TITLES.get(f["kind"], f["kind"]),
+            "counterparty": "Bank", "amount": f["amount"], "offer_id": f["offer_id"]}
+
+
 def open_debts(shop_id: int, today: date | None = None) -> list[dict]:
     today = _today(today)
     rows = db.query(
@@ -190,7 +212,9 @@ def free_money(shop_id: int, horizon_date: date | None = None, today: date | Non
 
     payments = [p for p in _pending_payments(shop_id) if _d(p["due_date"]) <= horizon]
     payments_due = sum(p["amount"] for p in payments)
-    free = cash_now + exp_sales - exp_exps - payments_due
+    flows = [f for f in _future_flows(shop_id, today) if _d(f["date"]) <= horizon]
+    flows_total = sum(f["amount"] for f in flows)
+    free = cash_now + exp_sales - exp_exps - payments_due + flows_total
 
     debts = open_debts(shop_id, today)
     next_payment = _pending_payments(shop_id)[:1]
@@ -206,6 +230,8 @@ def free_money(shop_id: int, horizon_date: date | None = None, today: date | Non
         "payments": [
             {"id": p["id"], "title": p["title"], "counterparty": p["counterparty"],
              "amount": p["amount"], "due_date": p["due_date"]} for p in payments],
+        "flows": [_flow_event(f) for f in flows],
+        "flows_total": flows_total,
         "next_payment": next_payment[0] if next_payment else None,
         "total_receivable": sum(r["remaining"] for r in debts),
         "top_debtors": [_debtor_view(r) for r in debts[:3]],
@@ -224,16 +250,20 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
     avg = _Averages(shop_id, today)
     cash = cash_on(shop_id, today)
     pend = _pending_payments(shop_id)
+    flows = _future_flows(shop_id, today)
     end_date = today + timedelta(days=days)
 
     out = []
+    flows_so_far = 0
     morning_base = cash  # остаток к утру дня d без учёта платежей
     paid_so_far = sum(p["amount"] for p in pend if _d(p["due_date"]) <= today)
     for i in range(1, days + 1):
         d = today + timedelta(days=i)
         day_payments = [p for p in pend if _d(p["due_date"]) == d]
         paid_so_far += sum(p["amount"] for p in day_payments)
-        balance = morning_base - paid_so_far
+        day_flows = [f for f in flows if _d(f["date"]) == d]
+        flows_so_far += sum(f["amount"] for f in day_flows)
+        balance = morning_base - paid_so_far + flows_so_far
         out.append({
             "date": d.isoformat(),
             "weekday": WEEKDAYS_UZ[d.weekday()],
@@ -241,7 +271,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
             "expected_sales": int(round(avg.sales[d.weekday()])),
             "expected_expenses": int(round(avg.expenses[d.weekday()])),
             "events": [{"id": p["id"], "type": "scheduled_payment", "title": p["title"],
-                        "counterparty": p["counterparty"], "amount": p["amount"]} for p in day_payments],
+                        "counterparty": p["counterparty"], "amount": p["amount"]} for p in day_payments]
+                      + [_flow_event(f) for f in day_flows],
             "red": balance < 0,
         })
         morning_base += avg.net(d)
@@ -250,7 +281,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
         {"id": p["id"], "date": p["due_date"], "type": "scheduled_payment", "title": p["title"],
          "counterparty": p["counterparty"], "amount": p["amount"], "overdue": _d(p["due_date"]) < today}
         for p in pend if _d(p["due_date"]) <= end_date
-    ]
+    ] + [{**_flow_event(f), "overdue": False} for f in flows if _d(f["date"]) <= end_date]
+    events.sort(key=lambda e: e["date"])
     return {"today": today.isoformat(), "cash_now": cash, "history": history, "forecast": out, "events": events}
 
 
@@ -277,17 +309,17 @@ def deposit_offer(amount: int) -> dict:
     }
 
 
-def _days_until_recovered(fc: list[dict], horizon: str) -> int:
-    """Сколько дней после горизонта прогноз остаётся в минусе (срок овердрафта)."""
-    started = False
-    n = 0
-    for row in fc:
-        if row["date"] >= horizon:
-            started = True
-        if started:
-            n += 1
-            if row["balance"] >= 0 and row["date"] > horizon:
-                return n
+def overdraft_term(fc: list[dict], horizon: str, today: date, amount: int) -> int:
+    """Срок овердрафта в днях ОТ СЕГОДНЯ (деньги берутся сегодня).
+
+    Возврат — в первый день после горизонта, начиная с которого прогноз до конца окна
+    не опускается ниже переплаты: после возврата остаток = прогноз − переплата, красного не будет.
+    """
+    max_cost = amount * OVERDRAFT["annual_rate"] * OVERDRAFT["max_days"] / 365
+    rows = [r for r in fc if r["date"] > horizon]
+    for i, row in enumerate(rows):
+        if all(r["balance"] >= max_cost for r in rows[i:]):
+            return max(1, min((_d(row["date"]) - today).days, OVERDRAFT["max_days"]))
     return OVERDRAFT["max_days"]
 
 
@@ -309,7 +341,8 @@ def recommendation(shop_id: int, today: date | None = None) -> dict:
             to_remind.append(_debtor_view(r))
             acc += r["remaining"]
         fc = forecast(shop_id, days=OVERDRAFT["max_days"] + 7, today=today)["forecast"]
-        term = _days_until_recovered(fc, fm["horizon"])
+        amount = overdraft_offer(gap, 1)["amount"]
+        term = overdraft_term(fc, fm["horizon"], today, amount)
         return {
             **base, "kind": "shortage", "gap": gap, "receivable": receivable,
             "covers_by_debts": receivable >= gap,

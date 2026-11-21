@@ -97,6 +97,22 @@ CREATE TABLE IF NOT EXISTS drafts (
 CREATE INDEX IF NOT EXISTS ix_drafts_batch ON drafts(batch_id);
 """
 
+# Денежные потоки вне P&L: принятые банковские офферы (овердрафт, вклад) и изъятия владельца.
+# Сумма со знаком. Прибыль они не меняют, остаток и прогноз — меняют.
+CASH_FLOWS_SQL = """
+CREATE TABLE IF NOT EXISTS cash_flows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    offer_id INTEGER REFERENCES offers(id),
+    kind TEXT NOT NULL CHECK (kind IN ('overdraft_in','overdraft_repay','deposit_out','deposit_return','owner_draw')),
+    amount INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    note TEXT,
+    created_at TEXT NOT NULL
+);
+"""
+CASH_FLOWS_INDEX = "CREATE INDEX IF NOT EXISTS ix_cash_flows_shop_date ON cash_flows(shop_id, date);"
+
 TRUST_LABELS = {
     "voice": "so'zdan",
     "text": "so'zdan",
@@ -138,6 +154,14 @@ def connect() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='cash_flows'").fetchone()
+        if row and "owner_draw" not in row[0]:
+            # мягкая миграция: таблица из ранней версии без вида owner_draw
+            conn.execute("ALTER TABLE cash_flows RENAME TO cash_flows_old")
+            conn.executescript(CASH_FLOWS_SQL)
+            conn.execute("INSERT INTO cash_flows SELECT * FROM cash_flows_old")
+            conn.execute("DROP TABLE cash_flows_old")
+        conn.executescript(CASH_FLOWS_SQL + CASH_FLOWS_INDEX)
 
 
 def query(sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:
