@@ -53,7 +53,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Daromad extras (dev)", lifespan=lifespan)
+app = FastAPI(title="Flowcast extras (dev)", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])  # как в main.py
 
 

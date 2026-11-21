@@ -1,4 +1,4 @@
-"""Фото накладной / чека / скриншота Payme-Click -> события в общем формате Daromad.
+"""Фото накладной / чека / скриншота Payme-Click -> события в общем формате Flowcast.
 
 ИИ (Gemini) только читает картинку и извлекает данные. Код проверяет суммы, типы и даты.
 Сохранение и подтверждение кнопкой делает основной бэк (источник записи — "photo").
@@ -67,7 +67,7 @@ class PhotoParsed(BaseModel):
     transcript: str
 
 
-PROMPT = """Sen "Daromad" — kichik do'kon egasining yordamchisisan. Senga RASM beriladi: yetkazib beruvchining
+PROMPT = """Sen "Flowcast" — kichik do'kon egasining yordamchisisan. Senga RASM beriladi: yetkazib beruvchining
 nakladnoyi (hisob-faktura), xarajat cheki yoki Payme/Click o'tkazma skrinshoti. Matn o'zbekcha (lotin yoki kirill)
 yoki ruscha bo'lishi mumkin. Vazifang — rasmdagi ma'lumotni ajratib, FAQAT JSON qaytarish.
 Hech narsani hisoblama va qo'shma: summa sifatida hujjatda YOZILGAN yakuniy summani ol (ИТОГО / Jami / К оплате).
@@ -364,7 +364,7 @@ def parse_photo(image_bytes: bytes, mime: str | None = None, today: date | None 
 # --- CLI ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m extras.vision", description="Фото -> события Daromad (JSON)")
+    ap = argparse.ArgumentParser(prog="python -m extras.vision", description="Фото -> события Flowcast (JSON)")
     ap.add_argument("path", help="фото накладной, чека или скриншота")
     ap.add_argument("--today", help="сегодняшняя дата YYYY-MM-DD (по умолчанию — системная)")
     args = ap.parse_args(argv)

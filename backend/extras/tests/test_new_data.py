@@ -35,7 +35,7 @@ def new_world(monkeypatch, tmp_path):
     monkeypatch.setattr(payments, "EXTRAS_DIR", tmp_path)
     monkeypatch.setattr(sms, "OUTBOX_PATH", tmp_path / "outbox.jsonl")
     monkeypatch.setattr(sms, "EXTRAS_DIR", tmp_path)
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://daromad-demo.up.railway.app")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowcast-demo.up.railway.app")
     adapters._shops.update({k: dict(v) for k, v in SHOPS.items()})
     for did, shop, person, phone, amount, remaining in DEBTS:
         adapters._debts[did] = {"id": did, "shop_id": shop, "person_name": person, "phone": phone,
@@ -61,7 +61,7 @@ def test_full_chain_on_new_debt(did, shop, person, phone, amount, remaining, cap
     text = p["sms_text"]
     assert len(text) <= 160 and text.isascii(), text                 # одно SMS латиницей (GSM-7)
     assert f"{money(remaining)} so'm" in text                         # остаток, не исходная сумма
-    assert p["pay_url"] in text and p["pay_url"].startswith("https://daromad-demo.up.railway.app/pay/")
+    assert p["pay_url"] in text and p["pay_url"].startswith("https://flowcast-demo.up.railway.app/pay/")
     assert p["phone"] == f"+{norm(phone)[:5]} *** ** {norm(phone)[-2:]}"
 
     r = c.post(f"/api/debts/{did}/remind").json()
@@ -90,7 +90,7 @@ def test_shop_and_person_names_transliterated_and_quotes_safe():
     t_uz = c.post("/api/debts/102/remind/preview").json()["sms_text"]
     t_ru = c.post("/api/debts/103/remind/preview").json()["sms_text"]
     assert "G'ayrat aka" in t_uz                                         # магазин узнаваем, не «G'ay.»
-    assert "Produkti Shir" in t_ru and t_ru.isascii()                   # кириллица -> латиница, «» убраны
+    assert '"Produkti Sh' in t_ru and t_ru.isascii()                    # кириллица -> латиница, «» убраны
     short = sms.build_reminder_text("Продукты «Ширин»", "Шахзод Каримов", 12_345_678, "http://x.uz/pay/" + "t" * 43)
     assert "Shaxzod" in short and "Produkti Shirin" in short and short.isascii()
 

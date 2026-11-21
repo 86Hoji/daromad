@@ -471,7 +471,7 @@ def test_restart_keeps_links_with_real_db(monkeypatch):
 
 @pytest.mark.parametrize("url,public", [("http://localhost:8001", False), ("http://127.0.0.1:8001", False),
                                         ("http://0.0.0.0:8001", False), ("http://mac.local:8001", False),
-                                        ("https://daromad.up.railway.app", True),
+                                        ("https://flowcast.up.railway.app", True),
                                         ("https://abc-def.trycloudflare.com", True)])
 def test_base_url_is_public(monkeypatch, url, public):
     monkeypatch.setenv("PUBLIC_BASE_URL", url)
@@ -490,7 +490,7 @@ def test_real_eskiz_with_localhost_link_is_refused(monkeypatch):
     monkeypatch.setenv("ESKIZ_TEST_MODE", "1")                  # тестовый Eskiz: ссылка не уходит — можно
     assert reminders.send_reminder(ALISHER, now=T0)["status"] == "sent"
     monkeypatch.setenv("ESKIZ_TEST_MODE", "0")
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://daromad.up.railway.app")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowcast.up.railway.app")
     assert reminders.send_reminder(_with_consent(NIGORA), now=T0)["status"] == "sent"
 
 
