@@ -12,11 +12,17 @@ JPEG = b"\xff\xd8\xff\xe0" + b"0" * 200
 CONTRACT_KEYS = {"type", "amount", "person", "phone", "category", "due_date", "note"}
 
 
+@pytest.fixture(autouse=True)
+def fake_settings(monkeypatch):
+    """Ключ и модели из теста, а не из настоящего .env."""
+    monkeypatch.setattr(vision, "_settings", lambda: ("test-key", ["model-a", "model-b"]))
+
+
 def fake_gemini(monkeypatch, payload, calls=None):
     """Подменить вызов Gemini: payload — dict (будет JSON), str (как есть) или Exception."""
-    async def _fake(image_bytes, mime, prompt):
+    async def _fake(image_bytes, mime, prompt, model, key):
         if calls is not None:
-            calls.append({"bytes": image_bytes, "mime": mime, "prompt": prompt})
+            calls.append({"bytes": image_bytes, "mime": mime, "prompt": prompt, "model": model})
         if isinstance(payload, Exception):
             raise payload
         return payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
@@ -209,15 +215,93 @@ def test_timeout_returns_error(monkeypatch):
     async def slow(*a):
         await asyncio.sleep(1)
     monkeypatch.setattr(vision, "_call_gemini", slow)
-    monkeypatch.setattr(vision, "TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(vision, "ATTEMPT_TIMEOUT", 0.01)
     r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
     assert r["events"] == [] and "timeout" in r["transcript"]
 
 
 def test_missing_api_key_returns_error(monkeypatch):
-    monkeypatch.setattr(vision, "_settings", lambda: ("", "gemini-flash-latest"))
+    calls = []
+    fake_gemini(monkeypatch, one([]), calls)
+    monkeypatch.setattr(vision, "_settings", lambda: ("", ["model-a"]))
     r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
-    assert r["events"] == [] and "GEMINI_API_KEY" in r["transcript"]
+    assert r["events"] == [] and "GEMINI_API_KEY" in r["transcript"] and calls == []
+
+
+# --- запасные модели ------------------------------------------------------------------
+
+def scripted(monkeypatch, answers):
+    """Каждая модель отвечает по-своему: answers = {model: Exception | dict | coroutine-sleep}."""
+    tried = []
+
+    async def _fake(image_bytes, mime, prompt, model, key):
+        tried.append(model)
+        a = answers[model]
+        if a == "slow":
+            await asyncio.sleep(1)
+        if isinstance(a, Exception):
+            raise a
+        return json.dumps(a)
+    monkeypatch.setattr(vision, "_call_gemini", _fake)
+    return tried
+
+
+OK = one([{"type": "sale", "amount": 20_000, "amount_text": "20 000"}])
+
+
+@pytest.mark.parametrize("err", [
+    RuntimeError("503 UNAVAILABLE. high demand"), RuntimeError("429 RESOURCE_EXHAUSTED"),
+    RuntimeError("404 NOT_FOUND. model is no longer available"), RuntimeError("500 INTERNAL"),
+])
+def test_falls_back_to_next_model(monkeypatch, err):
+    tried = scripted(monkeypatch, {"model-a": err, "model-b": OK})
+    r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
+    assert tried == ["model-a", "model-b"] and r["events"][0]["amount"] == 20_000
+
+
+def test_slow_model_falls_back(monkeypatch):
+    monkeypatch.setattr(vision, "ATTEMPT_TIMEOUT", 0.05)
+    tried = scripted(monkeypatch, {"model-a": "slow", "model-b": OK})
+    assert vision.parse_photo(JPEG, "image/jpeg", TODAY)["events"] and tried == ["model-a", "model-b"]
+
+
+@pytest.mark.parametrize("err", [RuntimeError("400 INVALID_ARGUMENT"), RuntimeError("401 API key not valid"),
+                                 RuntimeError("403 PERMISSION_DENIED")])
+def test_non_retryable_error_stops(monkeypatch, err):
+    tried = scripted(monkeypatch, {"model-a": err, "model-b": OK})
+    r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
+    assert tried == ["model-a"] and r["events"] == [] and r["transcript"].startswith("error:")
+
+
+def test_all_models_fail_reports_last_error(monkeypatch):
+    scripted(monkeypatch, {"model-a": RuntimeError("503 a"), "model-b": RuntimeError("503 b")})
+    r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
+    assert r["events"] == [] and "503 b" in r["transcript"]
+
+
+def test_total_deadline_stops_trying(monkeypatch):
+    monkeypatch.setattr(vision, "TIMEOUT_SECONDS", 1.05)
+    monkeypatch.setattr(vision, "ATTEMPT_TIMEOUT", 0.2)
+    tried = scripted(monkeypatch, {"model-a": "slow", "model-b": OK})
+    r = vision.parse_photo(JPEG, "image/jpeg", TODAY)
+    assert tried == ["model-a"] and "timeout" in r["transcript"]
+
+
+def test_settings_order_and_dedup(monkeypatch):
+    monkeypatch.undo()
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_MODEL", "m1")
+    monkeypatch.setenv("GEMINI_FALLBACK_MODELS", " m2, m1 ,,m3")
+    assert vision._settings() == ("k", ["m1", "m2", "m3"])
+
+
+def test_settings_defaults(monkeypatch):
+    monkeypatch.undo()
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_MODEL", "")
+    monkeypatch.delenv("GEMINI_FALLBACK_MODELS", raising=False)
+    monkeypatch.setattr(vision, "EXTRAS_DIR", vision.Path("/nonexistent"))
+    assert vision._settings() == ("k", [vision.DEFAULT_MODEL, "gemini-3.5-flash-lite"])
 
 
 def test_empty_file(monkeypatch):

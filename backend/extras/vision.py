@@ -7,6 +7,8 @@
     parse_photo(image_bytes, mime, today)          # из скриптов и тестов (sync)
     python -m extras.vision samples/nakladnaya1.jpg [--today 2026-11-23]   # запуск из backend/
 
+Модели: GEMINI_MODEL, при 503/429/404/таймауте — по очереди GEMINI_FALLBACK_MODELS.
+
 Ответ всегда в формате:
     {"intent": "record", "events": [...], "transcript": "..."}
 Ошибки не роняют программу: events = [], transcript = "error: ...".
@@ -34,7 +36,13 @@ CATEGORIES = ("tovar", "ijara", "maosh", "kommunal", "transport", "boshqa")
 MAX_AMOUNT = 1_000_000_000
 MAX_IMAGE_BYTES = 15 * 1024 * 1024          # inline-запрос Gemini — до ~20 МБ
 MAX_EVENTS = 10
-TIMEOUT_SECONDS = 45
+TIMEOUT_SECONDS = 60            # на весь запрос, со всеми запасными моделями
+ATTEMPT_TIMEOUT = 25            # на одну модель
+DEFAULT_MODEL = "gemini-3.5-flash"
+DEFAULT_FALLBACKS = "gemini-3.5-flash-lite"
+# Ошибки, при которых пробуем следующую модель: перегрузка, лимит, модель недоступна, таймаут.
+_RETRYABLE = ("503", "unavailable", "429", "resource_exhausted", "404", "not_found", "500", "internal",
+              "deadline", "timeout")
 ALLOWED_MIME = ("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf")
 WEEKDAYS_UZ = ("dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba")
 
@@ -228,15 +236,29 @@ def error_result(reason: str) -> dict:
 
 # --- вызов Gemini --------------------------------------------------------------------
 
-def _settings() -> tuple[str, str]:
+def _settings() -> tuple[str, list[str]]:
+    """-> (ключ, модели по порядку: GEMINI_MODEL, потом GEMINI_FALLBACK_MODELS через запятую)."""
     try:
         from dotenv import load_dotenv
         load_dotenv(EXTRAS_DIR / ".env")
     except ImportError:
         pass
     key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "").strip() or "gemini-flash-latest"
-    return key, model
+    main = os.getenv("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+    fallbacks = os.getenv("GEMINI_FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
+    models = []
+    for m in [main, *fallbacks]:
+        m = m.strip()
+        if m and m not in models:
+            models.append(m)
+    return key, models
+
+
+def _retryable(exc: BaseException) -> bool:
+    if isinstance(exc, asyncio.TimeoutError):
+        return True
+    msg = f"{exc.__class__.__name__} {exc}".lower()
+    return any(marker in msg for marker in _RETRYABLE)
 
 
 def build_prompt(today: date) -> str:
@@ -245,11 +267,8 @@ def build_prompt(today: date) -> str:
     return PROMPT.format(today=today.isoformat(), today_wd=WEEKDAYS_UZ[today.weekday()], week_table=week)
 
 
-async def _call_gemini(image_bytes: bytes, mime: str, prompt: str) -> str:
-    """Один запрос к Gemini. Возвращает текст JSON. Подменяется в тестах."""
-    key, model = _settings()
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY yo'q (backend/extras/.env)")
+async def _call_gemini(image_bytes: bytes, mime: str, prompt: str, model: str, key: str) -> str:
+    """Один запрос к одной модели Gemini. Возвращает текст JSON. Подменяется в тестах."""
     from google import genai
     from google.genai import types
 
@@ -293,14 +312,31 @@ async def aparse_photo(image_bytes: bytes, mime: str | None = None, today: date 
     if mime not in ALLOWED_MIME:
         return error_result(f"bu turdagi fayl qo'llanmaydi: {mime or 'noma`lum'}")
 
-    try:
-        text = await asyncio.wait_for(_call_gemini(image_bytes, mime, build_prompt(today)), TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        log.error("vision: Gemini timeout")
-        return error_result("sun'iy intellekt javob bermadi (timeout)")
-    except Exception as exc:  # сеть, квота, ключ, модель — программа не падает
-        log.error("vision: Gemini error: %s", exc)
-        return error_result(str(exc)[:300] or exc.__class__.__name__)
+    key, models = _settings()
+    if not key:
+        return error_result("GEMINI_API_KEY yo'q (backend/extras/.env)")
+
+    prompt = build_prompt(today)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + TIMEOUT_SECONDS
+    text, last_error = None, "noma'lum xato"
+    for model in models:
+        left = deadline - loop.time()
+        if left <= 1:
+            last_error = "sun'iy intellekt javob bermadi (timeout)"
+            break
+        try:
+            text = await asyncio.wait_for(_call_gemini(image_bytes, mime, prompt, model, key),
+                                          min(ATTEMPT_TIMEOUT, left))
+            break
+        except Exception as exc:  # сеть, квота, ключ, модель — программа не падает
+            last_error = ("sun'iy intellekt javob bermadi (timeout)" if isinstance(exc, asyncio.TimeoutError)
+                          else (str(exc)[:300] or exc.__class__.__name__))
+            log.warning("vision: model %s failed: %s", model, last_error)
+            if not _retryable(exc):
+                break
+    if text is None:
+        return error_result(last_error)
 
     try:
         raw = json.loads(text)
