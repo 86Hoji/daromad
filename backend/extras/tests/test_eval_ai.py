@@ -169,6 +169,7 @@ def test_main_ai_timeout_falls_back_to_next_model(monkeypatch):
         if config.GEMINI_MODEL == "slow":
             await asyncio.sleep(5)
         return {"intent": "record", "events": [], "transcript": "ok"}
+    monkeypatch.delattr(ai, "FALLBACK_MODELS", raising=False)    # старый ai.py: модели перебирает eval
     monkeypatch.setattr(ai, "parse_input", slow_then_ok)
     monkeypatch.setattr(eval_ai, "MAIN_AI_TIMEOUT", 0.05)
     monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
@@ -182,6 +183,7 @@ def test_main_ai_all_models_timeout_is_error(monkeypatch):
 
     async def slow(**kw):
         await asyncio.sleep(5)
+    monkeypatch.delattr(ai, "FALLBACK_MODELS", raising=False)    # старый ai.py: модели перебирает eval
     monkeypatch.setattr(ai, "parse_input", slow)
     monkeypatch.setattr(eval_ai, "MAIN_AI_TIMEOUT", 0.02)
     monkeypatch.setattr(config, "GEMINI_MODEL", config.GEMINI_MODEL)
