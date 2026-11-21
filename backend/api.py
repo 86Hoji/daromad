@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from typing import Any, Literal
 from urllib.parse import parse_qsl
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
 import ai
@@ -21,6 +21,7 @@ import config
 import db
 import logic
 import pipeline
+import tts
 
 router = APIRouter(prefix="/api")
 
@@ -191,6 +192,21 @@ async def _run(shop: dict, **kwargs) -> dict:
 @router.post("/text")
 async def post_text(body: TextIn, shop: dict = Depends(current_shop)) -> dict:
     return await _run(shop, text=body.text, source="text")
+
+
+class TtsIn(BaseModel):
+    text: str = Field(min_length=1, max_length=tts.MAX_CHARS)
+    format: Literal["wav", "ogg"] = "wav"
+
+
+@router.post("/tts")
+async def post_tts(body: TtsIn, shop: dict = Depends(current_shop)) -> Response:
+    """Озвучка ответа. По умолчанию WAV — играет в любом браузере и WebView (OGG/Opus — для Telegram).
+    503 — TTS недоступен (фронт просто прячет кнопку)."""
+    data = await tts.synthesize(tts.for_voice(body.text), fmt=body.format)
+    if not data:
+        raise HTTPException(status_code=503, detail="Ovozli javob hozir mavjud emas")
+    return Response(content=data, media_type=tts.audio_mime(data), headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/voice")

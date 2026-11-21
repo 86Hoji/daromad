@@ -84,6 +84,8 @@ pip install -r backend\requirements.txt
 | `BOT_TOKEN` | токен бота от @BotFather |
 | `GEMINI_API_KEY` | ключ Google AI Studio |
 | `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`. Для новых ключей Google `*-latest` и `gemini-2.5-flash` недоступны — ставьте `gemini-3.8-flash`. Если модель не найдена (404) или перегружена (503/таймаут 25 с), код сам переходит по цепочке `gemini-3.8-flash` → `gemini-3.5-flash-lite`, а упавшую модель пропускает 5 минут |
+| `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | голосовые ответы: по умолчанию `gemini-3.8-flash-tts`, голос `Fola` |
+| `VOICE_REPLIES` | `1` (по умолчанию) — на вопрос, заданный голосом, бот отвечает текстом и голосовым; `0` — только текст |
 | `WEBAPP_URL` | https-адрес Mini App **с путём `/tg`** (например `https://<проект>.vercel.app/tg`), даёт кнопку-меню «Hisobim»; можно оставить пустым |
 | `DEV_SHOP_ID` | бизнес для API без Telegram-заголовка (демо), по умолчанию `1` |
 
@@ -105,6 +107,14 @@ uvicorn main:app --port 8000
 
 `seed.py --reset` идемпотентно пересоздаёт демо-бизнес (#1). Если демо уже привязан к вашему Telegram, привязка сохраняется.
 В Telegram: `/start` → «🧪 Demo biznesni ulash» — бот покажет данные seed и нехватку к четвергу.
+
+## Голосовые ответы (TTS)
+
+Вопрос задан **голосом** («Kim menga qarz?») → бот присылает текстовый ответ и голосовое (Gemini TTS, голос Fola,
+PCM → OGG/Opus через PyAV, при сбое Opus — WAV через sendAudio). Текстовые вопросы — только текст. Для уха списки
+сокращаются до топ-3 и общей суммы. Таймаут 10 с; при ошибке голос молча пропускается. Кэш по хэшу текста.
+В `/app` и `/tg` у ответа есть кнопка «Eshitish» (`POST /api/tts {text}` → WAV); если вопрос задан через 🎤 — звук
+включается сам. Образец: `backend/tts_samples/kim_menga_qarz.ogg` (пересоздать: `python tts_samples\make_sample.py` из `backend/`).
 
 ## Тесты
 

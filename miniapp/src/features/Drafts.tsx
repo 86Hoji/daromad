@@ -7,6 +7,7 @@ import { useLive } from "../lib/live";
 import { CATEGORY_LABEL, capitalize, ddmm, money, weekday } from "../lib/format";
 import { haptic } from "../lib/telegram";
 import { Chip } from "../ui/bits";
+import { ListenButton } from "./Listen";
 import { Sheet } from "../ui/Sheet";
 import { toast } from "../ui/Toast";
 
@@ -88,7 +89,7 @@ export function DraftCards({ drafts, fx = false, fly = false }: { drafts: Draft[
 }
 
 /** Лист «Yozib oldim»: To'g'ri -> confirm, Tuzatish -> reject и фокус в поле ввода. */
-export function DraftSheet({ result, onClose, onFix }: { result: ProcessResult | null; onClose: () => void; onFix?: () => void }) {
+export function DraftSheet({ result, onClose, onFix, autoListen = false }: { result: ProcessResult | null; onClose: () => void; onFix?: () => void; autoListen?: boolean }) {
   const { refresh } = useLive();
   const [busy, setBusy] = useState<null | "ok" | "fix">(null);
   const isQuestion = result?.intent === "question";
@@ -127,6 +128,7 @@ export function DraftSheet({ result, onClose, onFix }: { result: ProcessResult |
     return (
       <Sheet open={!!result} onClose={onClose} title="Javob" primary={{ label: "Yopish", onClick: onClose }}>
         <p className="text-[16px] leading-relaxed whitespace-pre-line">{result?.answer}</p>
+        {result?.answer && <ListenButton className="mt-4" text={result.voice_text || result.answer} auto={autoListen} />}
       </Sheet>
     );
   }

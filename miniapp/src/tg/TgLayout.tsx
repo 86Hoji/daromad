@@ -147,6 +147,7 @@ function TgComposer() {
       </div>
       <DraftSheet
         result={v.result}
+        autoListen={v.resultVia === "voice"}
         onClose={() => {
           v.clearResult();
           setTyping(false);

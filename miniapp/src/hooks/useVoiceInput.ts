@@ -16,6 +16,8 @@ export function useVoiceInput() {
   const [levels, setLevels] = useState<number[]>(() => Array(WAVE_LEN).fill(0));
   const [hint, setHint] = useState<string | null>(null);
   const [result, setResult] = useState<ProcessResult | null>(null);
+  /** как получен последний результат — голосом спросили, голосом и ответим (автопроигрывание) */
+  const [resultVia, setResultVia] = useState<"text" | "voice">("text");
   const rec = useRef<Recording | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function useVoiceInput() {
     setHint(null);
     try {
       const r = await p;
+      setResultVia(kind);
       setResult(r);
       if (kind === "text") setText("");
       if (r.intent === "record" && r.drafts.length === 0 && r.errors.length === 0) {
@@ -106,6 +109,7 @@ export function useVoiceInput() {
     hint,
     setHint,
     result,
+    resultVia,
     clearResult: () => setResult(null),
     sendText,
     toggleMic: () => (recording ? stop() : start()),

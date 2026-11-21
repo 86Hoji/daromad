@@ -13,3 +13,8 @@ GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "").strip() or "gemini-flash-lates
 WEBAPP_URL: str = os.getenv("WEBAPP_URL", "").strip()
 DEV_SHOP_ID: int = int(os.getenv("DEV_SHOP_ID", "1") or 1)
 DB_PATH: Path = Path(os.getenv("DAROMAD_DB", "") or (BASE_DIR / "data" / "daromad.db"))
+
+# голосовые ответы (TTS)
+GEMINI_TTS_MODEL: str = os.getenv("GEMINI_TTS_MODEL", "").strip() or "gemini-3.8-flash-tts"
+GEMINI_TTS_VOICE: str = os.getenv("GEMINI_TTS_VOICE", "").strip() or "Fola"
+VOICE_REPLIES: bool = os.getenv("VOICE_REPLIES", "1").strip() not in ("0", "false", "no", "")

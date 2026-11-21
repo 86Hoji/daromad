@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 import ai
 import db
 import logic
+import tts
 from logic import EXPENSE_CATEGORIES, round1000
 
 log = logging.getLogger("flowcast.pipeline")
@@ -134,11 +135,12 @@ async def process(shop_id: int, *, text: str | None = None, audio: bytes | None 
     db.audit(shop_id, "ai", "parsed", {"source": source, "intent": parsed["intent"],
                                        "transcript": parsed["transcript"], "events": parsed["events"]})
     result = {"intent": parsed["intent"], "transcript": parsed["transcript"],
-              "batch_id": None, "drafts": [], "errors": [], "answer": None}
+              "batch_id": None, "drafts": [], "errors": [], "answer": None, "voice_text": None}
 
     if parsed["intent"] == "question":
         question = parsed.get("question") or parsed["transcript"]
-        result["answer"] = await answer(shop_id, question, parsed.get("question_date"), today=today)
+        result["answer"], facts = await answer_full(shop_id, question, parsed.get("question_date"), today=today)
+        result["voice_text"] = voice_text(question, result["answer"], facts)
         return result
 
     valid = []
@@ -441,13 +443,33 @@ def fallback_answer(question: str, facts: dict) -> str:
     return f"Hisobingizda hozir {m(facts['hisobda_hozir'])}. {f['sana']} gacha bo'sh pul: {m(free)}."
 
 
-async def answer(shop_id: int, question: str, question_date: str | None = None, today: date | None = None) -> str:
+async def answer_full(shop_id: int, question: str, question_date: str | None = None,
+                      today: date | None = None) -> tuple[str, dict]:
     facts = build_facts(shop_id, question_date, today)
     try:
         text = await ai.answer_question(question, facts)
     except ai.AIUnavailable:
-        return fallback_answer(question, facts)
+        return fallback_answer(question, facts), facts
     if not ai.answer_uses_only_facts(text, facts):
         log.warning("AI javobida faktlarda yo'q raqam bor, shablon javob ishlatildi: %s", text)
-        return fallback_answer(question, facts)
-    return text
+        return fallback_answer(question, facts), facts
+    return text, facts
+
+
+async def answer(shop_id: int, question: str, question_date: str | None = None, today: date | None = None) -> str:
+    return (await answer_full(shop_id, question, question_date, today))[0]
+
+
+DEBT_WORDS = ("qarz", "долж", "долг", "қарз")
+
+
+def voice_text(question: str, answer_text: str, facts: dict, top: int = 3) -> str:
+    """Текст для озвучки. Списки на слух — топ-3 и общая сумма (цифры — только из facts, как и в тексте)."""
+    debtors = sorted(facts.get("qarzdorlar") or [], key=lambda d: -d["qarz"])
+    if debtors and any(w in question.lower() for w in DEBT_WORDS):
+        m = logic.fmt_money
+        names = ", ".join(f"{d['ism']} — {m(d['qarz'])}" for d in debtors[:top])
+        rest = len(debtors) - top
+        tail = f", va yana {rest} kishi." if rest > 0 else "."
+        return f"Sizga jami {m(facts['jami_qarzdorlik'])} qarz bor. Eng kattalari: {names}{tail}"
+    return tts.for_voice(answer_text)

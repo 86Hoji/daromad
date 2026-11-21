@@ -10,6 +10,7 @@ import { api, ApiError, type Draft, type ProcessResult } from "../lib/api";
 import { CATEGORY_LABEL, capitalize, ddmm, money, weekday } from "../lib/format";
 import { useMagnet } from "../lib/fx";
 import { useLive } from "../lib/live";
+import { ListenButton } from "../features/Listen";
 import { Button } from "../ui/Button";
 import { Chip } from "../ui/bits";
 import { toast } from "../ui/Toast";
@@ -289,9 +290,10 @@ export function VoiceOverlay() {
                     {r.intent === "question" ? (
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass lift-3 mt-8 p-6">
                         <p className="text-[17px] leading-relaxed whitespace-pre-line">{r.answer}</p>
-                        <Button className="mt-5" onClick={close}>
-                          Yopish
-                        </Button>
+                        <div className="mt-5 flex flex-wrap items-center gap-3">
+                          <Button onClick={close}>Yopish</Button>
+                          {r.answer && <ListenButton text={r.voice_text || r.answer} auto={v.resultVia === "voice"} />}
+                        </div>
                       </motion.div>
                     ) : drafts.length === 0 ? (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mt-8 text-center">

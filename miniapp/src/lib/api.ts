@@ -193,6 +193,8 @@ export interface ProcessResult {
   drafts: Draft[];
   errors: string[];
   answer: string | null;
+  /** короткий текст для озвучки ответа (топ-3 + сумма) */
+  voice_text?: string | null;
 }
 
 export interface EntriesResp {
@@ -272,6 +274,14 @@ export const api = {
     const ext = audio.type.includes("wav") ? "wav" : "webm";
     fd.append("audio", audio, `voice.${ext}`);
     return request<ProcessResult>("/api/voice", { method: "POST", body: fd });
+  },
+  /** озвучка ответа: WAV (играет в любом браузере и WebView) */
+  tts: async (text: string): Promise<Blob> => {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (initData) headers.set("X-Telegram-Init-Data", initData);
+    const res = await fetch(`${API_URL}/api/tts`, { method: "POST", headers, body: JSON.stringify({ text, format: "wav" }) });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return res.blob();
   },
   confirm: (ids: number[]) => post<{ confirmed: unknown[]; errors: string[] }>("/api/entries/confirm", { ids }),
   reject: (ids: number[]) => post<{ rejected: number }>("/api/entries/reject", { ids }),

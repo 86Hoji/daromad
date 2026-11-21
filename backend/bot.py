@@ -10,7 +10,7 @@ from aiogram.enums import ChatAction, ParseMode
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (BotCommand, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
+from aiogram.types import (BotCommand, BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
                            MenuButtonWebApp, Message, WebAppInfo)
 
 import ai
@@ -18,6 +18,7 @@ import config
 import db
 import logic
 import pipeline
+import tts
 import uz_numbers
 from logic import WEEKDAYS_UZ, fmt_money, round1000
 
@@ -299,6 +300,21 @@ async def cmd_help(message: Message) -> None:
 
 # --- голос / текст -> конвейер ----------------------------------------------------
 
+async def send_voice_reply(message: Message, text: str) -> None:
+    """Голосовой ответ (Gemini TTS). Любая ошибка — молча: текстовый ответ уже отправлен."""
+    try:
+        await message.bot.send_chat_action(message.chat.id, ChatAction.RECORD_VOICE)
+        data = await tts.synthesize(text, fmt="ogg")
+        if not data:
+            return
+        if tts.audio_mime(data) == "audio/ogg":
+            await message.answer_voice(BufferedInputFile(data, "javob.ogg"))
+        else:
+            await message.answer_audio(BufferedInputFile(data, "javob.wav"), title="Javob")
+    except Exception:
+        log.warning("ovozli javob yuborilmadi", exc_info=True)
+
+
 async def run_pipeline(message: Message, *, text: str | None = None, audio: bytes | None = None,
                        mime_type: str = "audio/ogg", source: str) -> None:
     shop = current_shop(message.from_user.id)
@@ -319,6 +335,9 @@ async def run_pipeline(message: Message, *, text: str | None = None, audio: byte
 
     if result["intent"] == "question":
         await wait.edit_text(esc(result["answer"]))
+        # спросили голосом -> ответим ещё и голосом (текстовые вопросы — только текст)
+        if source == "voice" and config.VOICE_REPLIES and result.get("voice_text"):
+            await send_voice_reply(message, result["voice_text"])
         return
     if not result["drafts"]:
         msg = "\n".join(f"❗ {esc(e)}" for e in result["errors"])
