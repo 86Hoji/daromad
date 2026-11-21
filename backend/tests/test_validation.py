@@ -106,3 +106,49 @@ def test_week_table_in_prompt():
     p = ai.build_prompt(TODAY)
     assert "payshanba = 2026-11-26" in p
     assert (TODAY + timedelta(days=1)).isoformat() in p
+
+
+class _FakeModels:
+    def __init__(self, behaviour):
+        self.behaviour, self.calls = behaviour, []
+
+    async def generate_content(self, model, contents, config):
+        self.calls.append(model)
+        b = self.behaviour.get(model, "ok")
+        if b != "ok":
+            raise RuntimeError(b)
+        return type("R", (), {"text": '{"ok": true}'})()
+
+
+def _fake_client(monkeypatch, behaviour):
+    models = _FakeModels(behaviour)
+    client = type("C", (), {"aio": type("A", (), {"models": models})()})()
+    monkeypatch.setattr(ai, "_get_client", lambda: client)
+    monkeypatch.setattr(ai, "_cooldown_until", {})
+    monkeypatch.setattr(ai.asyncio, "sleep", _no_sleep)
+    return models
+
+
+async def _no_sleep(_):
+    return None
+
+
+def test_generate_falls_back_and_cools_down(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(ai.config, "GEMINI_MODEL", "gemini-flash-latest")
+    models = _fake_client(monkeypatch, {"gemini-flash-latest": "404 NOT_FOUND",
+                                        "gemini-3.8-flash": "503 UNAVAILABLE high demand"})
+    assert asyncio.run(ai._generate(["x"])) == '{"ok": true}'
+    # 404 -> сразу дальше; 503 -> 1 повтор, потом дальше; ответила flash-lite
+    assert models.calls == ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    models.calls.clear()
+    asyncio.run(ai._generate(["x"]))
+    assert models.calls == ["gemini-3.5-flash-lite"]          # упавшие модели «остывают»
+
+
+def test_generate_all_down_raises_ai_unavailable(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(ai.config, "GEMINI_MODEL", "gemini-3.8-flash")
+    _fake_client(monkeypatch, {"gemini-3.8-flash": "503 UNAVAILABLE", "gemini-3.5-flash-lite": "503 UNAVAILABLE"})
+    with pytest.raises(ai.AIUnavailable):
+        asyncio.run(ai._generate(["x"]))

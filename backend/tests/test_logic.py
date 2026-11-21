@@ -162,6 +162,11 @@ def test_seed_gives_350k_shortage_by_thursday(tmp_db):
     assert fm["top_debtors"][0]["days_open"] == 21
     share = logic.trust_share(1)["tasdiqlangan"]
     assert 0.6 <= share <= 0.7
+    # месячная прибыль положительная (~3–5 млн), красный в прогнозе — только четверг
+    month = logic.totals(1, "month", today=TODAY)["profit"]
+    assert 3_000_000 <= month <= 5_000_000
+    fc = logic.forecast(1, days=14, today=TODAY)["forecast"]
+    assert [r["date"] for r in fc if r["red"]] == [THURSDAY.isoformat()]
     # идемпотентность
     fm2 = seed.seed(reset=True, today=TODAY, shop_id=1)
     assert fm2["free_money"] == -350_000

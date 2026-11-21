@@ -6,9 +6,11 @@ parse_photo(image_bytes) -> заглушка (фаза 3)
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+import time
 from datetime import date, timedelta
 from typing import Optional
 
@@ -139,13 +141,33 @@ def _get_client():
     return _client
 
 
-def _model_hint(exc: Exception) -> None:
+# Резервная цепочка моделей. gemini-2.5-flash недоступна новым ключам (Google: 404, советует 3.8-flash);
+# flash-модели бывают перегружены (503), поэтому в конце — лёгкая flash-lite.
+FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash-lite")
+CALL_TIMEOUT = 25        # секунд на одну попытку
+RETRIES_PER_MODEL = 1    # повторов на временную ошибку перед переходом к следующей модели
+COOLDOWN = 300           # после сбоя модель пропускается 5 минут, чтобы не ждать её таймаут каждый раз
+_cooldown_until: dict[str, float] = {}
+
+
+def _is_model_error(exc: Exception) -> bool:
     msg = str(exc).lower()
-    if "not found" in msg or "404" in msg or "model" in msg:
-        log.error("Gemini model '%s' xatosi: %s. Maslahat: .env da GEMINI_MODEL=gemini-2.5-flash qilib ko'ring.",
-                  config.GEMINI_MODEL, exc)
-    else:
-        log.error("Gemini xatosi: %s", exc)
+    return "404" in msg or "not found" in msg or "not supported" in msg or "no longer available" in msg
+
+
+def _is_transient(exc: Exception) -> bool:
+    if isinstance(exc, asyncio.TimeoutError):
+        return True
+    msg = str(exc).lower()
+    return any(s in msg for s in ("503", "unavailable", "429", "resource_exhausted", "overloaded", "deadline"))
+
+
+def _model_chain() -> list[str]:
+    chain = [config.GEMINI_MODEL]
+    chain += [m for m in FALLBACK_MODELS if m not in chain]
+    now = time.monotonic()
+    ready = [m for m in chain if _cooldown_until.get(m, 0) <= now]
+    return ready or chain   # если все «остывают» — пробуем все
 
 
 async def _generate(contents, schema=None, temperature: float = 0.0) -> str:
@@ -156,15 +178,39 @@ async def _generate(contents, schema=None, temperature: float = 0.0) -> str:
     if schema is not None:
         cfg.response_mime_type = "application/json"
         cfg.response_schema = schema
-    try:
-        resp = await client.aio.models.generate_content(model=config.GEMINI_MODEL, contents=contents, config=cfg)
-    except Exception as exc:  # сеть, квота, неверная модель — бот не должен падать
-        _model_hint(exc)
-        raise AIUnavailable("Hozir sun'iy intellekt bilan bog'lanib bo'lmadi. Birozdan keyin qayta urinib ko'ring.") from exc
-    text = (resp.text or "").strip()
-    if not text:
-        raise AIUnavailable("Sun'iy intellekt bo'sh javob qaytardi. Qayta urinib ko'ring.")
-    return text
+
+    last_exc: Exception | None = None
+    for model in _model_chain():
+        for attempt in range(RETRIES_PER_MODEL + 1):
+            try:
+                resp = await asyncio.wait_for(
+                    client.aio.models.generate_content(model=model, contents=contents, config=cfg), CALL_TIMEOUT)
+            except Exception as exc:  # сеть, квота, неверная модель — бот не должен падать
+                last_exc = exc
+                what = "timeout" if isinstance(exc, asyncio.TimeoutError) else str(exc)[:160]
+                if _is_model_error(exc):
+                    log.error("Gemini model '%s' mavjud emas: %s. Maslahat: .env da GEMINI_MODEL=%s qilib qo'ying.",
+                              model, what, FALLBACK_MODELS[0])
+                    _cooldown_until[model] = time.monotonic() + COOLDOWN
+                    break                      # к следующей модели
+                if _is_transient(exc):
+                    log.warning("Gemini '%s' vaqtincha band (%s)", model, what)
+                    if attempt < RETRIES_PER_MODEL:
+                        await asyncio.sleep(1.0)
+                        continue
+                    _cooldown_until[model] = time.monotonic() + COOLDOWN
+                    break                      # к следующей модели
+                log.error("Gemini xatosi (%s): %s", model, what)
+                raise AIUnavailable("Hozir sun'iy intellekt bilan bog'lanib bo'lmadi. "
+                                    "Birozdan keyin qayta urinib ko'ring.") from exc
+            if model != config.GEMINI_MODEL:
+                log.info("Gemini javobi zaxira model '%s' dan olindi", model)
+            text = (resp.text or "").strip()
+            if not text:
+                raise AIUnavailable("Sun'iy intellekt bo'sh javob qaytardi. Qayta urinib ko'ring.")
+            return text
+    log.error("Gemini: barcha modellar ishlamadi (%s). Oxirgi xato: %s", ", ".join(_model_chain()), last_exc)
+    raise AIUnavailable("Hozir sun'iy intellekt band. Bir daqiqadan keyin qayta urinib ko'ring.") from last_exc
 
 
 def _week_table(today: date) -> str:

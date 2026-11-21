@@ -50,7 +50,7 @@ pip install -r backend\requirements.txt
 |---|---|
 | `BOT_TOKEN` | токен бота от @BotFather |
 | `GEMINI_API_KEY` | ключ Google AI Studio |
-| `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`; если модель не найдена — `gemini-2.5-flash` |
+| `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`. Для новых ключей Google `*-latest` и `gemini-2.5-flash` недоступны — ставьте `gemini-3.8-flash`. Если модель не найдена (404) или перегружена (503/таймаут 25 с), код сам переходит по цепочке `gemini-3.8-flash` → `gemini-3.5-flash-lite`, а упавшую модель пропускает 5 минут |
 | `WEBAPP_URL` | https-адрес Mini App (фаза 2), даёт кнопку «Kassam»; можно оставить пустым |
 | `DEV_SHOP_ID` | магазин для API без Telegram-заголовка (демо), по умолчанию `1` |
 

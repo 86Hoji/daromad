@@ -8,6 +8,7 @@ opening_cash подбирается так, чтобы к ближайшему �
 from __future__ import annotations
 
 import argparse
+import math
 import random
 from datetime import date, timedelta
 
@@ -20,7 +21,8 @@ OWNER = "Dilshod"
 TARGET_FREE = -350_000
 AKMAL_AMOUNT = 3_000_000
 RENT = 2_500_000
-WEEKLY_PAY = 1_500_000
+WEEKLY_PAY = 600_000
+OPENING_TARGET = 1_500_000   # желаемый стартовый остаток в кассе 30 дней назад
 
 DEBTS = [  # (имя, сумма, дней назад, телефон, согласие на SMS)
     ("Alisher", 450_000, 21, "+998901234567", True),
@@ -84,16 +86,16 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             terminal = k(sales * rng.uniform(0.35, 0.45))
             entry(d, "sale", sales - terminal, "tovar", "naqd savdo", "voice")
             entry(d, "sale", terminal, "tovar", "terminal (karta)", "bank")
-            # закупка товара на базаре (~75% выручки; ещё часть товара — от Akmal раз в 2 недели)
-            entry(d, "expense", k(sales * rng.uniform(0.72, 0.78)), "tovar", "bozordan tovar", "bank")
+            # закупка товара на базаре (~70% выручки; ещё часть товара — от Akmal раз в 2 недели)
+            entry(d, "expense", k(sales * rng.uniform(0.67, 0.71)), "tovar", "bozordan tovar", "bank")
             # обычные мелкие расходы ~120–180 тыс/день
             entry(d, "expense", k(rng.uniform(40_000, 60_000)), "boshqa", "paketlar", "voice")
             entry(d, "expense", k(rng.uniform(50_000, 80_000)), "transport", "yetkazish, taksi", "bank")
             entry(d, "expense", k(rng.uniform(25_000, 40_000)), "kommunal", "svet, gaz", "bank")
             if d.day == 1:
                 entry(d, "expense", RENT, "ijara", "do'kon ijarasi", "bank")
-            if d.weekday() == 5:  # по субботам: зарплата помощнику и деньги владельцу домой
-                entry(d, "expense", WEEKLY_PAY, "maosh", "yordamchi va oila uchun", "voice")
+            if d.weekday() == 5:  # по субботам: зарплата помощнику
+                entry(d, "expense", WEEKLY_PAY, "maosh", "yordamchi maoshi", "voice")
             if d.weekday() == 3 and ((thu - d).days // 7) % 2 == 0:
                 # прошлые платежи Akmal раз в 2 недели — плановые, в среднее не входят
                 entry(d, "expense", AKMAL_AMOUNT, "tovar", "Akmal (yetkazib beruvchi)", "bank", is_scheduled=1)
@@ -122,14 +124,24 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             "VALUES (?,?,?,?,?,?, 'pending')",
             (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, thu.isoformat(), "voice"))
 
-    # подбор opening_cash: free_money линейна по нему
+    # Подбор opening_cash: free_money линейна по нему, нужно opening − one_off = TARGET_FREE − base.
+    # Прибыльный магазин 30 дней назад имел меньше денег, поэтому, чтобы opening был положительным,
+    # в первый день истории — разовая покупка оборудования. Этот день вне окна средних
+    # (окно = последние 4 таких же дня недели = today−28..today−1), прогноз она не трогает.
     base = logic.free_money(shop_id, today=today)["free_money"]
-    opening = TARGET_FREE - base
+    needed = TARGET_FREE - base
+    one_off = max(0, int(math.ceil((OPENING_TARGET - needed) / 100_000)) * 100_000)
+    if one_off:
+        db.execute(
+            "INSERT INTO entries (shop_id, kind, amount, category, note, date, source, status, is_scheduled, created_at) "
+            "VALUES (?, 'expense', ?, 'boshqa', 'muzlatgich-vitrina (bir martalik)', ?, 'bank', 'confirmed', 0, ?)",
+            (shop_id, one_off, start.isoformat(), ts(start, "12:00:00")))
+    opening = needed + one_off
     db.execute("UPDATE shops SET opening_cash=? WHERE id=?", (opening, shop_id))
-    db.audit(shop_id, "system", "seed", {"opening_cash": opening, "today": today.isoformat()})
+    db.audit(shop_id, "system", "seed", {"opening_cash": opening, "one_off": one_off, "today": today.isoformat()})
 
     fm = logic.free_money(shop_id, today=today)
-    return {**fm, "opening_cash": opening}
+    return {**fm, "opening_cash": opening, "one_off": one_off}
 
 
 def main() -> None:
