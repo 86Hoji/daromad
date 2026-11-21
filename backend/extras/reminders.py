@@ -95,4 +95,5 @@ def send_reminder(debt_id: int, now: datetime | None = None) -> dict:
                        {"debt_id": debt_id, "provider": result.get("provider"), "sms_id": result.get("id")})
     return {"status": "sent", "debt_id": debt_id, "phone": mask_phone(debt["phone"]), "text": text,
             "pay_url": url, "provider": result.get("provider"),
+            "sms_test_mode": bool(result.get("test_mode")),   # Eskiz без договора: ушёл «Bu Eskiz dan test»
             "expires_at": payments._fmt(now + payments.TOKEN_TTL)}

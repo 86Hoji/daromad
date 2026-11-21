@@ -170,6 +170,7 @@ def eskiz(monkeypatch, handler, email="a@b.uz", password="pw"):
     monkeypatch.setenv("SMS_PROVIDER", "eskiz")
     monkeypatch.setenv("ESKIZ_EMAIL", email)
     monkeypatch.setenv("ESKIZ_PASSWORD", password)
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "0")
     calls = []
 
     def _handler(request):
@@ -193,7 +194,8 @@ def ok_handler(request, calls):
 def test_eskiz_login_then_send(monkeypatch):
     calls = eskiz(monkeypatch, ok_handler)
     r = sms.send_sms("+998 90 123 45 67", "Salom")
-    assert r == {"status": "sent", "provider": "eskiz", "id": "abc-1", "provider_status": "waiting"}
+    assert r == {"status": "sent", "provider": "eskiz", "id": "abc-1", "provider_status": "waiting",
+                 "test_mode": False}
     assert [c.url.path for c in calls] == ["/api/auth/login", "/api/message/sms/send"]
     assert calls[1].headers["Authorization"] == "Bearer T1"
     assert form(calls[1])["mobile_phone"] == "998901234567"
@@ -278,3 +280,28 @@ def test_cli_send_bad_phone(capsys):
 
 def test_cli_without_args_shows_help(capsys):
     assert sms.main([]) == 2
+
+
+# --- ESKIZ_TEST_MODE: тестовый аккаунт Eskiz пропускает только свой текст ---------------
+
+def test_eskiz_test_mode_sends_test_text(monkeypatch):
+    calls = eskiz(monkeypatch, ok_handler)
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "1")
+    r = sms.send_sms("998901234567", "Assalomu alaykum! Qarz 450 000 so'm. To'lash: http://x/pay/abc")
+    assert r["status"] == "sent" and r["test_mode"] is True
+    from urllib.parse import unquote_plus
+    assert unquote_plus(form(calls[1])["message"]) == "Bu Eskiz dan test"
+    assert form(calls[1])["mobile_phone"] == "998901234567"
+
+
+@pytest.mark.parametrize("value,expected", [("1", True), ("true", True), ("ON", True),
+                                            ("0", False), ("", False), ("no", False)])
+def test_eskiz_test_mode_values(monkeypatch, value, expected):
+    monkeypatch.setenv("ESKIZ_TEST_MODE", value)
+    assert sms.eskiz_test_mode() is expected
+
+
+def test_test_mode_does_not_touch_mock(monkeypatch):
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "1")
+    sms.send_sms("998901234567", "Real matn")
+    assert sms.read_outbox()[-1]["text"] == "Real matn"

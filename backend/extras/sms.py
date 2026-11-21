@@ -29,6 +29,9 @@ PROVIDERS = ("mock", "eskiz")
 # Eskiz.uz, по публичной документации. TODO: сверить с актуальной документацией перед включением.
 ESKIZ_BASE_URL = "https://notify.eskiz.uz/api"
 ESKIZ_DEFAULT_FROM = "4546"        # TODO: своё имя отправителя после регистрации в Eskiz
+# Тестовый аккаунт Eskiz (без договора) пропускает только свои тестовые тексты.
+# ESKIZ_TEST_MODE=1 -> вместо нашего текста уходит этот; владелец в Mini App видит настоящий текст.
+ESKIZ_TEST_TEXT = "Bu Eskiz dan test"
 HTTP_TIMEOUT = 15
 
 
@@ -196,9 +199,16 @@ def _eskiz_login(client) -> str:
     return token
 
 
+def eskiz_test_mode() -> bool:
+    return _env("ESKIZ_TEST_MODE", "0").lower() in ("1", "true", "yes", "on")
+
+
 def _send_eskiz(number: str, text: str) -> dict:
     """Ошибки Eskiz не бросаются, а возвращаются как status="failed" — API покажет их владельцу."""
     global _eskiz_token
+    test_mode = eskiz_test_mode()
+    if test_mode:
+        text = ESKIZ_TEST_TEXT
     try:
         with _http_client() as client:
             for attempt in (1, 2):
@@ -214,7 +224,7 @@ def _send_eskiz(number: str, text: str) -> dict:
                 r.raise_for_status()
                 body = r.json()
                 return {"status": "sent", "provider": "eskiz", "id": str(body.get("id") or ""),
-                        "provider_status": body.get("status")}
+                        "provider_status": body.get("status"), "test_mode": test_mode}
     except Exception as exc:
         log.error("Eskiz SMS failed: %s", exc)
         return {"status": "failed", "provider": "eskiz", "id": None, "error": str(exc)[:200]}

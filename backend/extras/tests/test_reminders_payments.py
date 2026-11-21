@@ -246,3 +246,14 @@ def test_api_reset(client):
     assert client.post("/api/dev/reset").json() == {"ok": True}
     assert payments.load_tokens() == {}
     assert client.post(f"/api/debts/{ALISHER}/remind").status_code == 200
+
+
+def test_reminder_reports_eskiz_test_mode(monkeypatch):
+    monkeypatch.setattr(sms, "send_sms", lambda p, t: {"status": "sent", "provider": "eskiz", "id": "1",
+                                                       "test_mode": True})
+    r = reminders.send_reminder(ALISHER, now=T0)
+    assert r["sms_test_mode"] is True and "450 000 so'm" in r["text"]   # владелец видит настоящий текст
+
+
+def test_reminder_mock_is_not_test_mode():
+    assert reminders.send_reminder(ALISHER, now=T0)["sms_test_mode"] is False
