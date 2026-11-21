@@ -92,6 +92,9 @@ export interface ForecastDay {
   date: string;
   weekday: string;
   balance: number;
+  /** полоса неопределённости: худший / лучший сценарий продаж по тем же 4 дням недели */
+  low: number;
+  high: number;
   expected_sales: number;
   expected_expenses: number;
   events: FcEvent[];
@@ -200,7 +203,20 @@ export interface EntriesResp {
   expenses: number;
   profit: number;
   by_category: { sale: Record<string, number>; expense: Record<string, number> };
-  entries: { id: number; kind: string; amount: number; category: string; note: string | null; date: string; source: string; trust: string }[];
+  entries: Entry[];
+}
+
+export interface Entry {
+  id: number;
+  kind: "sale" | "expense";
+  amount: number;
+  category: string;
+  note: string | null;
+  date: string;
+  source: string;
+  trust: string;
+  status: string;
+  created_at: string;
 }
 
 export interface AuditItem {

@@ -1,39 +1,92 @@
 @import "tailwindcss";
 
-/* ---- токены: холодный белый / глубокий графит, два смысловых цвета ---- */
+/* ============================================================================
+   Daromad — дизайн-система
+   Lapis / Night / Porcelain + три смысловых цвета. Разделение — тоном и
+   пространством, тени только у плавающих элементов.
+   ========================================================================== */
+
 :root {
-  --bg: #f2f4f7;
+  /* бренд-константы (не меняются с темой: тёмные секции лендинга, логотип) */
+  --lapis: #1f3fbf;
+  --night: #0b1430;
+  --night-2: #121d40;
+  --night-3: #1a2650;
+  --porcelain: #f4f6fa;
+
+  /* поверхности */
+  --bg: #f4f6fa;
   --surface: #ffffff;
-  --surface-2: #f7f8fa;
-  --line: #e3e7ed;
-  --ink: #0b1220;
-  --ink-2: #566173;
-  --ink-3: #8a93a3;
-  --pos: #079455;        /* хватает */
-  --pos-soft: #e7f6ee;
-  --neg: #e5252a;        /* не хватает */
-  --neg-soft: #fdecec;
-  --btn: #0b1220;
-  --btn-ink: #ffffff;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --surface-2: #eaeef5;
+  --surface-3: #dfe5ef;
+  --line: #dce1ec;
+
+  /* текст: холодные серые, производные от Night (все пары — AA) */
+  --ink: #0b1430;
+  --ink-2: #3d4766;
+  --ink-3: #646e8c;
+
+  /* бренд */
+  --brand: #1f3fbf;
+  --brand-hover: #1a34a0;
+  --brand-ink: #ffffff;
+  --brand-text: #1f3fbf;
+  --brand-soft: #e6ebfa;
+
+  /* смысл: заливки / текст / подложки */
+  --pos: #12a594;
+  --pos-text: #0b7f72;
+  --pos-soft: #ddf3f0;
+  --neg: #e0384b;
+  --neg-text: #c42638;
+  --neg-soft: #fce6e8;
+  --warn: #e9a23b;
+  --warn-text: #9a5d00;
+  --warn-soft: #fcf0dc;
+
+  /* график */
+  --chart-past: #0b1430;
+  --chart-future: #1f3fbf;
+  --chart-band: #1f3fbf;
+
+  --shadow-float: 0 8px 24px rgb(11 20 48 / 0.08), 0 1px 2px rgb(11 20 48 / 0.06);
+  --focus: #1f3fbf;
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c0e11;
-  --surface: #14171b;
-  --surface-2: #1a1e23;
-  --line: #262b32;
-  --ink: #f1f3f6;
-  --ink-2: #a0a8b5;
-  --ink-3: #6b7380;
-  --pos: #17c47a;
-  --pos-soft: rgba(23, 196, 122, 0.12);
-  --neg: #ff4d4f;
-  --neg-soft: rgba(255, 77, 79, 0.13);
-  --btn: #f1f3f6;
-  --btn-ink: #0c0e11;
-  --shadow: none;
+  --bg: #0b1430;
+  --surface: #121d40;
+  --surface-2: #18244d;
+  --surface-3: #22305c;
+  --line: #22305c;
+
+  --ink: #eef1f8;
+  --ink-2: #b4bcd3;
+  --ink-3: #8590ae;
+
+  --brand: #3355e0;
+  --brand-hover: #4464ea;
+  --brand-ink: #ffffff;
+  --brand-text: #8ea2ff;
+  --brand-soft: rgb(91 120 240 / 0.16);
+
+  --pos: #2cc5b2;
+  --pos-text: #2cc5b2;
+  --pos-soft: rgb(44 197 178 / 0.14);
+  --neg: #ff5a6b;
+  --neg-text: #ff7a88;
+  --neg-soft: rgb(255 90 107 / 0.15);
+  --warn: #f2b655;
+  --warn-text: #f2b655;
+  --warn-soft: rgb(242 182 85 / 0.14);
+
+  --chart-past: #eef1f8;
+  --chart-future: #7b93ff;
+  --chart-band: #5b78f0;
+
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.35);
+  --focus: #8ea2ff;
   color-scheme: dark;
 }
 
@@ -41,17 +94,38 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-line: var(--line);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
   --color-pos: var(--pos);
+  --color-pos-text: var(--pos-text);
   --color-pos-soft: var(--pos-soft);
   --color-neg: var(--neg);
+  --color-neg-text: var(--neg-text);
   --color-neg-soft: var(--neg-soft);
-  --color-btn: var(--btn);
-  --color-btn-ink: var(--btn-ink);
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-soft: var(--warn-soft);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-night-3: var(--night-3);
+  --color-lapis: var(--lapis);
+  --color-porcelain: var(--porcelain);
+
+  --font-sans: "Geologica", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Unbounded", "Geologica", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-panel: 24px;
+  --radius-el: 12px;
+
+  --shadow-float: var(--shadow-float);
 }
 
 html,
@@ -59,64 +133,79 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
+/* цифры: всегда табличные; display-цифры — Unbounded */
 .num {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1, "cv11" 1;
+  font-feature-settings: "tnum" 1;
+}
+.display {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.03em;
 }
 
-.card {
+/* видимый фокус для клавиатуры — везде одинаковый */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* панель: только тон, без рамки и тени */
+.panel {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-panel);
 }
 
-.hairline {
-  border-color: var(--line);
+/* скелетон */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-el);
+}
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
-/* нижний лист: анимация только при открытии/закрытии */
-.sheet-enter {
-  animation: sheet-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+/* волна-скелетон графика: мотив «голос -> линия» */
+.wave-bar {
+  transform-origin: bottom;
+  animation: wave 1.2s ease-in-out infinite;
 }
-.fade-enter {
-  animation: fade-in 0.2s ease-out;
-}
-@keyframes sheet-up {
-  from { transform: translateY(24px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* короткая подсветка цифры после изменения */
-.bump {
-  animation: bump 0.6s ease-out;
-}
-@keyframes bump {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.025); }
-  100% { transform: scale(1); }
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-enter, .fade-enter, .bump { animation: none; }
+  .skeleton, .wave-bar { animation: none; }
 }
 
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
 
 .recharts-wrapper,
 .recharts-surface {

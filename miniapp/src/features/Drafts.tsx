@@ -1,0 +1,150 @@
+// Распознанные события: карточки (лист «Yozib oldim» и песочница лендинга) и лист подтверждения.
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, HandCoins, Undo2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
+import { api, ApiError, type Draft, type ProcessResult } from "../lib/api";
+import { useLive } from "../lib/live";
+import { CATEGORY_LABEL, capitalize, ddmm, money, weekday } from "../lib/format";
+import { haptic } from "../lib/telegram";
+import { Chip } from "../ui/bits";
+import { Sheet } from "../ui/Sheet";
+import { toast } from "../ui/Toast";
+
+const TYPE: Record<Draft["type"], { label: string; icon: typeof ArrowUpRight; sign: "+" | "−" | ""; tone: string }> = {
+  sale: { label: "Sotuv", icon: ArrowDownLeft, sign: "+", tone: "text-pos-text" },
+  expense: { label: "Xarajat", icon: ArrowUpRight, sign: "−", tone: "text-ink" },
+  debt_given: { label: "Qarzga berildi", icon: HandCoins, sign: "", tone: "text-warn-text" },
+  debt_returned: { label: "Qarz qaytdi", icon: Undo2, sign: "+", tone: "text-pos-text" },
+  scheduled_payment: { label: "Kutilayotgan to'lov", icon: CalendarClock, sign: "−", tone: "text-ink" },
+};
+
+function title(d: Draft): string {
+  switch (d.type) {
+    case "sale":
+      return d.note ? capitalize(d.note) : "Bugungi savdo";
+    case "expense":
+      return CATEGORY_LABEL[d.category ?? "boshqa"] ?? d.category ?? "Boshqa";
+    case "debt_given":
+      return `${d.person ?? "Mijoz"} qarzga oldi`;
+    case "debt_returned":
+      return `${d.person ?? "Mijoz"} qarzini qaytardi`;
+    case "scheduled_payment":
+      return d.person || d.note || "To'lov";
+  }
+}
+
+function sub(d: Draft): string | null {
+  if (d.type === "scheduled_payment" && d.due_date) return `${capitalize(weekday(d.due_date))}, ${ddmm(d.due_date)}`;
+  if (d.type === "expense" && (d.note || d.person)) return d.note || d.person;
+  if (d.type === "debt_given" && d.phone) return d.phone.replace(/^(\+998)(\d{2})\d{5}(\d{2})$/, "$1 $2 *** ** $3");
+  return null;
+}
+
+export function DraftCards({ drafts }: { drafts: Draft[] }) {
+  return (
+    <ul className="space-y-2">
+      <AnimatePresence initial>
+        {drafts.map((d, i) => {
+          const t = TYPE[d.type];
+          const Icon = t.icon;
+          const s = sub(d);
+          return (
+            <motion.li
+              key={d.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.07, duration: 0.25 }}
+              className="flex items-center gap-3.5 rounded-el bg-surface-2 px-4 py-3.5"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink-2">
+                <Icon size={18} strokeWidth={1.75} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12.5px] text-ink-3">{t.label}</span>
+                <span className="block truncate text-[15.5px] font-medium">{title(d)}</span>
+                {s && <span className="num block truncate text-[13px] text-ink-3">{s}</span>}
+              </span>
+              <span className="flex flex-col items-end gap-1.5">
+                <span className={`num text-[16px] font-semibold ${t.tone}`}>
+                  {t.sign}
+                  {money(d.amount)}
+                </span>
+                {d.needs_check ? (
+                  <Chip tone="warn" icon={<AlertTriangle size={12} strokeWidth={2} />}>
+                    tekshiring
+                  </Chip>
+                ) : (
+                  <Chip>{d.trust}</Chip>
+                )}
+              </span>
+            </motion.li>
+          );
+        })}
+      </AnimatePresence>
+    </ul>
+  );
+}
+
+/** Лист «Yozib oldim»: To'g'ri -> confirm, Tuzatish -> reject и фокус в поле ввода. */
+export function DraftSheet({ result, onClose, onFix }: { result: ProcessResult | null; onClose: () => void; onFix?: () => void }) {
+  const { refresh } = useLive();
+  const [busy, setBusy] = useState<null | "ok" | "fix">(null);
+  const isQuestion = result?.intent === "question";
+  const drafts = result?.drafts ?? [];
+  const ids = drafts.map((d) => d.id);
+
+  const confirm = async () => {
+    setBusy("ok");
+    try {
+      const r = await api.confirm(ids);
+      haptic(r.errors.length ? "warning" : "success");
+      toast(r.errors.length ? r.errors[0] : "Saqlandi", r.errors.length ? "neg" : "pos");
+      onClose();
+      await refresh();
+    } catch (e) {
+      haptic("error");
+      toast(e instanceof ApiError ? e.message : "Xatolik", "neg");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const fix = async () => {
+    setBusy("fix");
+    try {
+      await api.reject(ids);
+      toast("Bekor qilindi — to'g'ri variantini yozing");
+      onClose();
+      onFix?.();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (isQuestion) {
+    return (
+      <Sheet open={!!result} onClose={onClose} title="Javob" primary={{ label: "Yopish", onClick: onClose }}>
+        <p className="text-[16px] leading-relaxed whitespace-pre-line">{result?.answer}</p>
+      </Sheet>
+    );
+  }
+
+  const has = drafts.length > 0;
+  return (
+    <Sheet
+      open={!!result}
+      onClose={onClose}
+      title={has ? "Yozib oldim" : "Tushunmadim"}
+      primary={has ? { label: "To'g'ri", onClick: confirm, loading: busy === "ok", disabled: busy === "fix" } : { label: "Yopish", onClick: onClose }}
+      secondary={has ? { label: "Tuzatish", onClick: fix, loading: busy === "fix", disabled: busy === "ok" } : undefined}
+    >
+      {has ? <DraftCards drafts={drafts} /> : <p className="text-[15px] text-ink-2">Summani va nima bo'lganini aytib ko'ring: «Bugun 1 million sotdim».</p>}
+      {result && result.errors.length > 0 && (
+        <div className="mt-3 flex gap-2 rounded-el bg-warn-soft p-3 text-[14px] text-warn-text">
+          <AlertTriangle size={16} strokeWidth={1.75} className="mt-0.5 shrink-0" />
+          <span>{result.errors.join(" · ")}</span>
+        </div>
+      )}
+    </Sheet>
+  );
+}
