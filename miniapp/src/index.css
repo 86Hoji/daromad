@@ -59,6 +59,7 @@
   --elev-3: 0 4px 8px rgb(23 24 28 / 0.05), 0 40px 80px -20px rgb(23 24 28 / 0.28);
   --shine: rgb(255 255 255 / 0.35);
   --layer: rgb(255 255 255 / 0.78);
+  --layer-edge: rgb(255 255 255 / 0.9);
   --veil: rgb(240 239 235 / 0.55);
 
   /* живой фон: база + пятна (серебро, графит, белый, тень бирюзы и граната) */
@@ -126,6 +127,7 @@
   --elev-3: 0 4px 8px rgb(0 0 0 / 0.3), 0 44px 90px -20px rgb(0 0 0 / 0.7);
   --shine: rgb(14 15 18 / 0.18);
   --layer: rgb(255 255 255 / 0.045);
+  --layer-edge: rgb(255 255 255 / 0.06);
   --veil: rgb(14 15 18 / 0.6);
 
   --liq-base: #0e0f12;
@@ -224,9 +226,11 @@ button:focus:not(:focus-visible) {
 }
 
 /* плоский полупрозрачный слой — /tg (без backdrop-filter: слабые Android) */
+/* /tg: плоский полупрозрачный слой без backdrop-filter; тонкая внутренняя кромка вместо стекла */
 .layer {
   background: var(--layer);
   border-radius: var(--radius-panel);
+  box-shadow: inset 0 0 0 1px var(--layer-edge);
 }
 
 /* ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@ const TAB_H = 60;
 function TabBar() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 bg-surface/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Bo'limlar"
     >

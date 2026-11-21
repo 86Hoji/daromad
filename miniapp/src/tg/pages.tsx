@@ -15,6 +15,7 @@ import { useLive } from "../lib/live";
 import { ddmm, money } from "../lib/format";
 import { inTelegram } from "../lib/telegram";
 import { AnimatedNumber } from "../ui/AnimatedNumber";
+import { Rise } from "../ui/Rise";
 import { Button } from "../ui/Button";
 import { Chip, ErrorState, LiveDot, Segmented, Skeleton } from "../ui/bits";
 
@@ -28,8 +29,13 @@ function Header({ title }: { title?: string }) {
   );
 }
 
-function Block({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`layer p-4 ${className}`}>{children}</section>;
+/** Плоский слой с каскадным появлением (без стекла и backdrop-filter). */
+function Block({ children, className = "", i = 0 }: { children: React.ReactNode; className?: string; i?: number }) {
+  return (
+    <Rise as="section" i={i} className={`layer p-4 ${className}`}>
+      {children}
+    </Rise>
+  );
 }
 
 export function TgHome() {
@@ -54,11 +60,13 @@ export function TgHome() {
   return (
     <>
       <Header />
-      <div className="px-1 pb-5">
-        <FreeMoney summary={summary} rec={rec} today={forecast.today} size="tg" />
-      </div>
-      <ChartCard forecast={forecast} compact />
-      <Block className="mt-3">
+      <Rise className="px-1 pb-5">
+        <FreeMoney summary={summary} rec={rec} today={forecast.today} size="tg" roll />
+      </Rise>
+      <Rise i={1}>
+        <ChartCard forecast={forecast} compact animate />
+      </Rise>
+      <Block className="mt-3" i={2}>
         <NextSteps rec={rec} forecast={forecast} variant="tg" />
       </Block>
     </>
@@ -82,14 +90,14 @@ export function TgDebts() {
       <div className="px-1 pb-4">
         <div className="text-[14px] text-ink-2">Sizga qarz</div>
         <div className="mt-1 flex items-baseline gap-2">
-          <AnimatedNumber value={debts.total_receivable} className="display text-[40px] leading-none font-bold text-warn-text" />
+          <AnimatedNumber value={debts.total_receivable} roll className="display text-[40px] leading-none font-bold text-warn-text" />
           <span className="text-[15px] text-ink-3">so'm</span>
         </div>
         <p className="mt-2 text-[14px] text-ink-3">
           {debts.open_count} ta mijoz · eng uzog'i {oldest} kun
         </p>
       </div>
-      <Block className="py-1">
+      <Block className="py-1" i={1}>
         <DebtList debts={debts.debts} onOpen={(d) => nav(`/tg/qarzlar/${d.id}`)} />
       </Block>
     </>
@@ -188,15 +196,15 @@ export function TgReport() {
           <Block>
             <Totals entries={entries} dense />
           </Block>
-          <Block>
+          <Block i={1}>
             <h2 className="mb-4 text-[16px] font-semibold">Xarajatlar</h2>
             <CategoryBars data={entries.by_category.expense} />
           </Block>
-          <Block>
+          <Block i={2}>
             <h2 className="mb-4 text-[16px] font-semibold">Ma'lumot ishonchliligi</h2>
             <TrustScale share={summary.trust_share} />
           </Block>
-          <Block>
+          <Block i={3}>
             <h2 className="mb-1 text-[16px] font-semibold">Jurnal</h2>
             {audit && <AuditList items={audit} limit={8} />}
           </Block>

@@ -40,8 +40,9 @@ function sub(d: Draft): string | null {
   return null;
 }
 
-/** fx — витринный вариант (лендинг): карточки влетают по одной с пружиной. */
-export function DraftCards({ drafts, fx = false }: { drafts: Draft[]; fx?: boolean }) {
+/** fly — карточки влетают по одной с пружиной; fx — то же плюс витринная подложка (лендинг). */
+export function DraftCards({ drafts, fx = false, fly = false }: { drafts: Draft[]; fx?: boolean; fly?: boolean }) {
+  const spring = fx || fly;
   return (
     <ul className="space-y-2">
       <AnimatePresence initial>
@@ -52,9 +53,9 @@ export function DraftCards({ drafts, fx = false }: { drafts: Draft[]; fx?: boole
           return (
             <motion.li
               key={d.id}
-              initial={fx ? { opacity: 0, y: 46, scale: 0.88, rotate: i % 2 ? -3 : 3 } : { opacity: 0, y: 10 }}
-              animate={fx ? { opacity: 1, y: 0, scale: 1, rotate: 0 } : { opacity: 1, y: 0 }}
-              transition={fx ? { type: "spring", stiffness: 240, damping: 19, delay: 0.12 + i * 0.2 } : { delay: i * 0.07, duration: 0.25 }}
+              initial={spring ? { opacity: 0, y: 46, scale: 0.88, rotate: i % 2 ? -3 : 3 } : { opacity: 0, y: 10 }}
+              animate={spring ? { opacity: 1, y: 0, scale: 1, rotate: 0 } : { opacity: 1, y: 0 }}
+              transition={spring ? { type: "spring", stiffness: 240, damping: 19, delay: 0.12 + i * 0.2 } : { delay: i * 0.07, duration: 0.25 }}
               className={`flex items-center gap-3.5 rounded-el px-4 py-3.5 ${fx ? "bg-surface/85 shadow-[var(--elev-1)]" : "bg-surface-2"}`}
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink-2">
@@ -139,7 +140,7 @@ export function DraftSheet({ result, onClose, onFix }: { result: ProcessResult |
       primary={has ? { label: "To'g'ri", onClick: confirm, loading: busy === "ok", disabled: busy === "fix" } : { label: "Yopish", onClick: onClose }}
       secondary={has ? { label: "Tuzatish", onClick: fix, loading: busy === "fix", disabled: busy === "ok" } : undefined}
     >
-      {has ? <DraftCards drafts={drafts} /> : <p className="text-[15px] text-ink-2">Summani va nima bo'lganini aytib ko'ring: «Bugun 1 million sotdim».</p>}
+      {has ? <DraftCards drafts={drafts} fly /> : <p className="text-[15px] text-ink-2">Summani va nima bo'lganini aytib ko'ring: «Bugun 1 million sotdim».</p>}
       {result && result.errors.length > 0 && (
         <div className="mt-3 flex gap-2 rounded-el bg-warn-soft p-3 text-[14px] text-warn-text">
           <AlertTriangle size={16} strokeWidth={1.75} className="mt-0.5 shrink-0" />
