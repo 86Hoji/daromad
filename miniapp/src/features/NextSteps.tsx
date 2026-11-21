@@ -90,7 +90,9 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
   let body: ReactNode;
   if (rec.kind === "shortage") {
     const od = rec.overdraft;
-    const top = rec.debtors_to_remind.slice(0, 3);
+    // топ-3 по сумме; debtors_to_remind — минимальный набор под нехватку, он идёт первым
+    const seen = new Set<number>();
+    const top = [...rec.debtors_to_remind, ...rec.top_debtors].filter((d) => !seen.has(d.id) && seen.add(d.id)).slice(0, 3);
     body = (
       <>
         <Step n={1} tone="warn" icon={<BellRing size={18} strokeWidth={1.75} />} title="Qarzdorlarga eslating">
@@ -111,10 +113,10 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
           ) : (
             <ul className="mt-3 space-y-1">
               {top.map((d) => (
-                <li key={d.id} className="flex items-center gap-3 rounded-el py-1.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{d.person_name}</span>
-                    <span className={`num text-[13px] ${d.days_open > 14 ? "text-warn-text" : "text-ink-3"}`}>{d.days_open} kun</span>
+                <li key={d.id} className="flex items-center gap-3 rounded-el py-1">
+                  <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="truncate text-[15px] font-medium">{d.person_name}</span>
+                    <span className={`num shrink-0 text-[13px] ${d.days_open > 14 ? "text-warn-text" : "text-ink-3"}`}>{d.days_open} kun</span>
                   </span>
                   <span className="num text-[15px] font-semibold">{moneyShort(d.remaining)}</span>
                   <Button

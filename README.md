@@ -29,9 +29,9 @@ miniapp/         Telegram Mini App «Hisobim»: Vite + React + TypeScript + Tail
   vercel.json    SPA-rewrites для деплоя
 ```
 
-| Мобильная (390px) | Десктоп |
-|---|---|
-| <img src="docs/screenshots/home-mobile-light.jpg" width="260"> <img src="docs/screenshots/home-mobile-dark.jpg" width="260"> | <img src="docs/screenshots/home-desktop-light.png" width="520"><br><img src="docs/screenshots/home-desktop-dark.png" width="520"> |
+![Дашборд /app, 1440px](docs/screenshots/app-1440-light.png)
+
+<img src="docs/screenshots/app-1440-dark.png" width="720" alt="Дашборд /app, тёмная тема">
 
 ## Установка (Windows)
 

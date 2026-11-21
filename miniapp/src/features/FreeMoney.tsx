@@ -45,12 +45,44 @@ export function FreeMoney({
       </div>
       <div
         className={`display mt-3 flex items-baseline gap-[0.18em] leading-[0.95] font-bold ${neg ? "text-neg-text" : "text-ink"}`}
-        style={{ fontSize: heroSize(summary.free_money, big ? 112 : 54, big ? 40 : 34) }}
+        style={{ fontSize: heroSize(summary.free_money, big ? 132 : 54, big ? 40 : 34) }}
       >
         <AnimatedNumber value={summary.free_money} />
         <span className="font-sans text-[0.28em] font-medium tracking-normal text-ink-3">so'm</span>
       </div>
-      <p className={`mt-4 max-w-[52ch] text-ink-2 ${big ? "text-[17px]" : "text-[15px]"}`}>{explain(summary, rec, today)}</p>
+      <p className={`mt-4 max-w-[52ch] text-ink-2 ${big ? "text-[18px]" : "text-[15px]"}`}>{explain(summary, rec, today)}</p>
+    </div>
+  );
+}
+
+/** Раскладка как формула: hisobda + kutilgan − to'lovlar = bo'sh pul. Код считает — человек видит как. */
+export function Formula({ summary }: { summary: Summary }) {
+  const net = summary.expected_sales - summary.expected_expenses;
+  const parts: { label: string; v: string; op?: string; cls?: string; hint?: string }[] = [
+    { label: "Hisobda", v: moneyShort(summary.cash_now) },
+    { label: "Kutilgan sotuv", v: moneyShort(Math.abs(net)), op: net >= 0 ? "+" : "−", hint: "xarajatdan keyin" },
+    { label: "To'lovlar", v: moneyShort(summary.payments_due), op: "−" },
+    { label: "Bo'sh pul", v: moneyShort(summary.free_money), op: "=", cls: summary.free_money < 0 ? "text-neg-text" : "text-pos-text" },
+  ];
+  return (
+    <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+      {parts.map((p) => (
+        <div key={p.label} className="flex items-end gap-4">
+          {p.op && (
+            <span className="display pb-1 text-[22px] font-medium text-ink-3" aria-hidden>
+              {p.op}
+            </span>
+          )}
+          <div>
+            <div className="text-[13px] text-ink-3">{p.label}</div>
+            <div className={`num text-[19px] font-semibold ${p.cls ?? ""}`}>{p.v}</div>
+          </div>
+        </div>
+      ))}
+      <div className="ml-auto border-l border-line pl-5">
+        <div className="text-[13px] text-ink-3">Sizga qarz</div>
+        <div className="num text-[19px] font-semibold text-warn-text">{moneyShort(summary.total_receivable)}</div>
+      </div>
     </div>
   );
 }
