@@ -169,7 +169,7 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Daromad demo ma'lumotlari")
+    parser = argparse.ArgumentParser(description="Flowcast demo ma'lumotlari")
     parser.add_argument("--reset", action="store_true", help="demo biznesni qayta yaratish")
     args = parser.parse_args()
     fm = seed(reset=args.reset)

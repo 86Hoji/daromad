@@ -1,4 +1,4 @@
-"""Daromad: FastAPI + Telegram-бот в одном процессе.
+"""Flowcast: FastAPI + Telegram-бот в одном процессе.
 
 Запуск (из папки backend):  uvicorn main:app
 """
@@ -16,7 +16,7 @@ import config
 import db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("daromad")
+log = logging.getLogger("flowcast")
 
 
 async def _run_bot(bot, dp) -> None:
@@ -60,12 +60,12 @@ async def lifespan(app: FastAPI):
             await bot.session.close()
 
 
-app = FastAPI(title="Daromad API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Flowcast API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(api.router)
 
 
 @app.get("/")
 def health() -> dict:
-    return {"ok": True, "service": "daromad", "bot": bool(config.BOT_TOKEN), "ai": bool(config.GEMINI_API_KEY),
+    return {"ok": True, "service": "flowcast", "bot": bool(config.BOT_TOKEN), "ai": bool(config.GEMINI_API_KEY),
             "model": config.GEMINI_MODEL}

@@ -13,7 +13,7 @@ import db
 import logic
 from logic import EXPENSE_CATEGORIES, round1000
 
-log = logging.getLogger("daromad.pipeline")
+log = logging.getLogger("flowcast.pipeline")
 
 EVENT_TYPES = ("sale", "expense", "debt_given", "debt_returned", "scheduled_payment")
 MAX_AMOUNT = 1_000_000_000

@@ -64,10 +64,11 @@ export function LogoMark({ size = 28, className = "" }: { size?: number; classNa
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
       <rect width="32" height="32" rx="9" fill="var(--brand)" />
+      {/* знак «волна -> линия»: голос затухает и превращается в растущую линию денег */}
       <g fill="none" stroke="var(--brand-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7 13.5v5M10.5 10v12M14 12.5v7" />
-        <path d="M17.5 16h3.5l4-5.5" />
+        <path d="M5.5 16.5q2-7 4 0t4 0q1-2.5 2 0H18l7.5-6.5" />
       </g>
+      <circle cx="25.5" cy="10" r="2" fill="var(--brand-ink)" />
     </svg>
   );
 }

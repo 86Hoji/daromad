@@ -1,4 +1,4 @@
-"""Telegram-бот Daromad (aiogram 3). Тексты — узбекский (латиница). Все цифры — из logic."""
+"""Telegram-бот Flowcast (aiogram 3). Тексты — узбекский (латиница). Все цифры — из logic."""
 from __future__ import annotations
 
 import logging
@@ -21,7 +21,7 @@ import pipeline
 import uz_numbers
 from logic import WEEKDAYS_UZ, fmt_money, round1000
 
-log = logging.getLogger("daromad.bot")
+log = logging.getLogger("flowcast.bot")
 router = Router()
 
 
@@ -170,7 +170,7 @@ def current_shop(user_id: int) -> dict | None:
 
 # --- /start и онбординг ----------------------------------------------------------
 
-INTRO = ("Assalomu alaykum! Men <b>Daromad</b> — kichik va mikro biznes uchun ovozli moliyaviy yordamchiman. "
+INTRO = ("Assalomu alaykum! Men <b>Flowcast</b> — kichik va mikro biznes uchun ovozli moliyaviy yordamchiman. "
          "Savdo, xarajat va qarzlarni ovoz bilan yozing — men bo'sh pulingizni oldindan hisoblab, "
          "kerak bo'lsa ogohlantiraman.")
 
@@ -504,3 +504,10 @@ async def setup_commands(bot: Bot) -> None:
         BotCommand(command="qarzlar", description="Kim menga qarz"),
         BotCommand(command="help", description="Yordam"),
     ])
+    try:
+        await bot.set_my_short_description("Flowcast — kichik va mikro biznes uchun ovozli moliyaviy yordamchi")
+        await bot.set_my_description(
+            "Men Flowcast — kichik va mikro biznes uchun ovozli moliyaviy yordamchiman. Savdo, xarajat va qarzlarni "
+            "ovoz bilan yozing — bo'sh pulingizni oldindan hisoblab, kerak bo'lsa ogohlantiraman.")
+    except Exception:  # описание — не критично (лимиты Telegram на частые вызовы)
+        log.warning("set_my_description failed", exc_info=True)

@@ -1,4 +1,4 @@
-// Клиент API Daromad. В Telegram шлёт X-Telegram-Init-Data, в браузере — без него (DEV_SHOP_ID).
+// Клиент API Flowcast. В Telegram шлёт X-Telegram-Init-Data, в браузере — без него (DEV_SHOP_ID).
 import { initData } from "./telegram";
 
 export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
