@@ -140,8 +140,8 @@ def recommendation_message(shop_id: int) -> tuple[str, InlineKeyboardMarkup | No
 def status_text(shop: dict) -> str:
     fm = logic.free_money(shop["id"])
     lines = [
-        f"🏪 <b>{esc(shop['name'])}</b>",
-        f"Kassada: <b>{fmt_money(fm['cash_now'])}</b>",
+        f"📊 <b>{esc(shop['name'])}</b>",
+        f"Hisobingizda: <b>{fmt_money(fm['cash_now'])}</b>",
         f"{day_label(fm['horizon'], dative=False).capitalize()}gacha bo'sh pul: <b>{fmt_money(fm['free_money'])}</b>",
     ]
     if fm["payments"]:
@@ -170,12 +170,16 @@ def current_shop(user_id: int) -> dict | None:
 
 # --- /start и онбординг ----------------------------------------------------------
 
+INTRO = ("Assalomu alaykum! Men <b>Daromad</b> — kichik va mikro biznes uchun ovozli moliyaviy yordamchiman. "
+         "Savdo, xarajat va qarzlarni ovoz bilan yozing — men bo'sh pulingizni oldindan hisoblab, "
+         "kerak bo'lsa ogohlantiraman.")
+
 HELP = ("Menga ovozli yoki matnli xabar yuboring, masalan:\n"
         "• «Bugun 2 million 300 ming sotdim»\n"
         "• «Alisher 150 ming qarz oldi»\n"
         "• «Payshanba kuni yetkazib beruvchiga 3 million»\n"
         "• «Kim menga qarz?»  • «Payshanbagacha yetadimi?»\n\n"
-        "/holat — kassa holati, /qarzlar — qarzdorlar.")
+        "/holat — hisob holati va bo'sh pul, /qarzlar — qarzdorlar.")
 
 
 @router.message(CommandStart())
@@ -188,16 +192,16 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     demo = db.get_shop(config.DEV_SHOP_ID)
     if demo and demo["tg_user_id"] is None:
         await message.answer(
-            "Assalomu alaykum! Men <b>Daromad</b> — ovozli kassa yordamchisiman.\n\n"
-            f"Demo do'kon «{esc(demo['name'])}» bor. Uni ulaysizmi yoki o'z do'koningizni ochasizmi?",
-            reply_markup=kb([("🧪 Demo do'konni ulash", "demo")], [("🏪 Yangi do'kon", "newshop")]))
+            f"{INTRO}\n\nDemo biznes «{esc(demo['name'])}» tayyor. Uni ulaysizmi yoki o'z biznesingizni qo'shasizmi?",
+            reply_markup=kb([("🧪 Demo biznesni ulash", "demo")], [("➕ O'z biznesimni qo'shish", "newshop")]))
         return
+    await message.answer(INTRO)
     await start_onboarding(message, state)
 
 
 async def start_onboarding(message: Message, state: FSMContext) -> None:
     await state.set_state(Onboarding.name)
-    await message.answer("Assalomu alaykum! Men <b>Daromad</b>. Do'koningiz nomi nima?")
+    await message.answer("Biznesingiz nomi?")
 
 
 @router.callback_query(F.data == "newshop")
@@ -210,11 +214,11 @@ async def cb_newshop(cq: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "demo")
 async def cb_demo(cq: CallbackQuery, state: FSMContext) -> None:
     if current_shop(cq.from_user.id):
-        await cq.answer("Sizda do'kon allaqachon bor.", show_alert=True)
+        await cq.answer("Sizda biznes allaqachon qo'shilgan.", show_alert=True)
         return
     demo = db.get_shop(config.DEV_SHOP_ID)
     if not demo or demo["tg_user_id"] is not None:
-        await cq.answer("Demo do'kon band.", show_alert=True)
+        await cq.answer("Demo biznes band.", show_alert=True)
         return
     db.execute("UPDATE shops SET tg_user_id=? WHERE id=? AND tg_user_id IS NULL", (cq.from_user.id, demo["id"]))
     db.audit(demo["id"], "owner", "demo_linked", {"tg_user_id": cq.from_user.id})
@@ -222,7 +226,7 @@ async def cb_demo(cq: CallbackQuery, state: FSMContext) -> None:
     await cq.message.edit_reply_markup(reply_markup=None)
     await set_webapp_button(cq.bot, cq.message.chat.id)
     shop = db.get_shop(demo["id"])
-    await cq.message.answer(f"✅ Demo do'kon ulandi.\n\n{status_text(shop)}")
+    await cq.message.answer(f"✅ Demo biznes ulandi.\n\n{status_text(shop)}")
     text, markup = recommendation_message(shop["id"])
     await cq.message.answer(text, reply_markup=markup)
     await cq.message.answer(HELP)
@@ -232,11 +236,11 @@ async def cb_demo(cq: CallbackQuery, state: FSMContext) -> None:
 async def onb_name(message: Message, state: FSMContext) -> None:
     name = message.text.strip()[:80]
     if not name or name.startswith("/"):
-        await message.answer("Do'kon nomini yozing, masalan: «Dilshod do'koni».")
+        await message.answer("Biznesingiz nomini yozing, masalan: «Dilshod Biznes».")
         return
     await state.update_data(name=name)
     await state.set_state(Onboarding.cash)
-    await message.answer("Hozir kassada qancha pul bor? (masalan: «2 million» yoki «1 500 000»)")
+    await message.answer("Hozir hisobingizda qancha pul bor? (masalan: «2 million» yoki «1 500 000»)")
 
 
 @router.message(Onboarding.cash, F.text)
@@ -248,11 +252,11 @@ async def onb_cash(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     await state.clear()
     if current_shop(message.from_user.id):
-        await message.answer("Do'koningiz allaqachon bor. /holat")
+        await message.answer("Biznesingiz allaqachon qo'shilgan. /holat")
         return
     db.create_shop(message.from_user.id, data["name"], message.from_user.first_name, amount)
     await set_webapp_button(message.bot, message.chat.id)
-    await message.answer(f"✅ «{esc(data['name'])}» ochildi, kassada {exact(amount)}.\n\n{HELP}")
+    await message.answer(f"✅ «{esc(data['name'])}» qo'shildi, hisobingizda {exact(amount)}.\n\n{HELP}")
 
 
 async def set_webapp_button(bot: Bot, chat_id: int) -> None:
@@ -261,7 +265,7 @@ async def set_webapp_button(bot: Bot, chat_id: int) -> None:
         return
     try:
         await bot.set_chat_menu_button(chat_id=chat_id,
-                                       menu_button=MenuButtonWebApp(text="Kassam", web_app=WebAppInfo(url=url)))
+                                       menu_button=MenuButtonWebApp(text="Hisobim", web_app=WebAppInfo(url=url)))
     except Exception as exc:  # Telegram требует https
         log.warning("WebApp tugmasini o'rnatib bo'lmadi: %s", exc)
 
@@ -299,7 +303,7 @@ async def run_pipeline(message: Message, *, text: str | None = None, audio: byte
                        mime_type: str = "audio/ogg", source: str) -> None:
     shop = current_shop(message.from_user.id)
     if not shop:
-        await message.answer("Avval /start bosib, do'koningizni oching.")
+        await message.answer("Avval /start bosib, biznesingizni qo'shing.")
         return
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     wait = await message.answer("⏳ Tinglayapman..." if audio else "⏳ O'qiyapman...")
@@ -485,7 +489,7 @@ def create_bot() -> tuple[Bot, Dispatcher]:
 async def setup_commands(bot: Bot) -> None:
     await bot.set_my_commands([
         BotCommand(command="start", description="Boshlash"),
-        BotCommand(command="holat", description="Kassa holati va bo'sh pul"),
+        BotCommand(command="holat", description="Hisob holati va bo'sh pul"),
         BotCommand(command="qarzlar", description="Kim menga qarz"),
         BotCommand(command="help", description="Yordam"),
     ])

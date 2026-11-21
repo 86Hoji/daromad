@@ -19,14 +19,14 @@ import db
 # --- константы -------------------------------------------------------------------
 
 SURPLUS_THRESHOLD = 1_000_000   # свободно больше — предлагаем вклад
-DEPOSIT_BUFFER = 500_000        # столько оставляем в кассе при вкладе
+DEPOSIT_BUFFER = 500_000        # столько оставляем на счету при вкладе
 DEFAULT_HORIZON_DAYS = 7
 AVG_WEEKS = 4                   # среднее за последние 4 таких же дня недели
 NON_REGULAR_CATEGORIES = ("ijara",)
 
 # Mock-каталог продуктов банка (цифры примерные).
 OVERDRAFT = {
-    "name": "Kassa overdrafti",
+    "name": "Biznes overdrafti",
     "annual_rate": 0.28,
     "max_days": 30,
     "min_amount": 100_000,
@@ -36,7 +36,7 @@ OVERDRAFT = {
     ),
 }
 DEPOSIT = {
-    "name": "Omonat «Kassa qoldig'i»",
+    "name": "Omonat «Bo'sh pul»",
     "annual_rate": 0.20,
     "term_days": 30,
     "early_withdrawal": "Muddatidan oldin yechilsa, foiz yillik 5% gacha kamayadi.",

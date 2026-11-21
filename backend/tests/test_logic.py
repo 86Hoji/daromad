@@ -34,10 +34,10 @@ def add_payment(shop_id, amount, due, status="pending"):
 
 def test_free_money_formula(tmp_db):
     shop = make_shop()
-    # аренда и оплаченный плановый платёж: уменьшают кассу, но не входят в средние расходы
+    # аренда и оплаченный плановый платёж: уменьшают остаток, но не входят в средние расходы
     add_entry(shop, "expense", 500_000, "ijara", TODAY - timedelta(days=10))
     add_entry(shop, "expense", 200_000, "tovar", TODAY - timedelta(days=3), is_scheduled=1)
-    # долг: выдача не меняет кассу, частичный возврат 50 000 — добавляет
+    # долг: выдача не меняет остаток, частичный возврат 50 000 — добавляет
     debt = db.execute("INSERT INTO debts (shop_id, person_name, amount, remaining, created_at, status) "
                       "VALUES (?,?,?,?,?, 'open')", (shop, "Ali", 300_000, 250_000, "2026-11-11 10:00:00"))
     db.execute("INSERT INTO debt_payments (debt_id, shop_id, amount, date, source, created_at) VALUES (?,?,?,?,?,?)",

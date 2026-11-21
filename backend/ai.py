@@ -48,7 +48,8 @@ class AIParsed(BaseModel):
     transcript: str
 
 
-PROMPT = """Sen "Daromad" — O'zbekistondagi kichik do'kon egasining ovozli yordamchisisan.
+PROMPT = """Sen "Daromad" — O'zbekistondagi kichik va mikro biznes egasining ovozli moliyaviy yordamchisisan
+(kafe, ustaxona, xizmat ko'rsatish, savdo, ulgurji, YaTT, o'zini o'zi band qilganlar).
 Egasi o'zbekcha (lotin yoki kirill), ruscha yoki aralash gapiradi. Vazifang — gapni tushunib,
 FAQAT JSON qaytarish. Hech narsani hisoblama, faqat aytilganini ajrat.
 
@@ -80,7 +81,7 @@ transcript — aytilgan gapning to'liq matni (ovoz bo'lsa — eshitganingni yoz,
 Agar gap tushunarsiz bo'lsa: intent="record", events=[], transcript = eshitganing.
 """
 
-QUESTION_PROMPT = """Sen "Daromad" yordamchisisan. Do'kon egasining savoliga o'zbek tilida (lotin) qisqa javob ber (1-4 gap).
+QUESTION_PROMPT = """Sen "Daromad" yordamchisisan. Biznes egasining savoliga o'zbek tilida (lotin) qisqa javob ber (1-4 gap).
 QATTIQ QOIDA: faqat quyidagi FAKTLARdagi raqamlarni ishlat, aynan shu ko'rinishda. Yangi raqam o'ylab topma,
 hech narsani qo'shma, ayirma, hisoblama. Kerakli fakt bo'lmasa — "bu haqda ma'lumot yo'q" de.
 Summalarni "1 200 000 so'm" ko'rinishida yoz.

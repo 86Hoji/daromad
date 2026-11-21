@@ -1,6 +1,6 @@
-"""Демо-данные: «Dilshod do'koni», 30 дней истории до сегодня.
+"""Демо-данные: «Dilshod Biznes» (малый торгово-сервисный бизнес, владелец Dilshod), 30 дней истории.
 
-    python seed.py --reset    # пересоздать демо-магазин (DEV_SHOP_ID), идемпотентно
+    python seed.py --reset    # пересоздать демо-бизнес (DEV_SHOP_ID), идемпотентно
 
 opening_cash подбирается так, чтобы к ближайшему четвергу (платёж Akmal 3 000 000)
 свободные деньги были ровно −350 000 (logic.free_money линейна по opening_cash).
@@ -16,13 +16,13 @@ import config
 import db
 import logic
 
-SHOP_NAME = "Dilshod do'koni"
+SHOP_NAME = "Dilshod Biznes"
 OWNER = "Dilshod"
 TARGET_FREE = -350_000
 AKMAL_AMOUNT = 3_000_000
 RENT = 2_500_000
 WEEKLY_PAY = 600_000
-OPENING_TARGET = 1_500_000   # желаемый стартовый остаток в кассе 30 дней назад
+OPENING_TARGET = 1_500_000   # желаемый стартовый остаток денег 30 дней назад
 
 DEBTS = [  # (имя, сумма, дней назад, телефон, согласие на SMS)
     ("Alisher", 450_000, 21, "+998901234567", True),
@@ -60,7 +60,7 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
     db.init_db()
     if db.get_shop(shop_id):
         if not reset:
-            print(f"Do'kon #{shop_id} allaqachon bor. Qayta yaratish uchun: python seed.py --reset")
+            print(f"Biznes #{shop_id} allaqachon bor. Qayta yaratish uchun: python seed.py --reset")
             return logic.free_money(shop_id, today=today)
     tg_user_id = wipe(shop_id)
 
@@ -93,7 +93,7 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             entry(d, "expense", k(rng.uniform(50_000, 80_000)), "transport", "yetkazish, taksi", "bank")
             entry(d, "expense", k(rng.uniform(25_000, 40_000)), "kommunal", "svet, gaz", "bank")
             if d.day == 1:
-                entry(d, "expense", RENT, "ijara", "do'kon ijarasi", "bank")
+                entry(d, "expense", RENT, "ijara", "joy ijarasi", "bank")
             if d.weekday() == 5:  # по субботам: зарплата помощнику
                 entry(d, "expense", WEEKLY_PAY, "maosh", "yordamchi maoshi", "voice")
             if d.weekday() == 3 and ((thu - d).days // 7) % 2 == 0:
@@ -125,7 +125,7 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, thu.isoformat(), "voice"))
 
     # Подбор opening_cash: free_money линейна по нему, нужно opening − one_off = TARGET_FREE − base.
-    # Прибыльный магазин 30 дней назад имел меньше денег, поэтому, чтобы opening был положительным,
+    # Прибыльный бизнес 30 дней назад имел меньше денег, поэтому, чтобы opening был положительным,
     # в первый день истории — разовая покупка оборудования. Этот день вне окна средних
     # (окно = последние 4 таких же дня недели = today−28..today−1), прогноз она не трогает.
     base = logic.free_money(shop_id, today=today)["free_money"]
@@ -146,14 +146,14 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daromad demo ma'lumotlari")
-    parser.add_argument("--reset", action="store_true", help="demo do'konni qayta yaratish")
+    parser.add_argument("--reset", action="store_true", help="demo biznesni qayta yaratish")
     args = parser.parse_args()
     fm = seed(reset=args.reset)
     m = logic.fmt_money
     print(f"✓ {SHOP_NAME} (#{config.DEV_SHOP_ID}) -> {config.DB_PATH}")
     if "opening_cash" in fm:
         print(f"  opening_cash:   {m(fm['opening_cash'])}")
-    print(f"  kassada hozir:  {m(fm['cash_now'])}")
+    print(f"  hisobda hozir:  {m(fm['cash_now'])}")
     print(f"  gorizont:       {fm['horizon']} ({fm['horizon_weekday']})")
     print(f"  kutilgan sotuv: {m(fm['expected_sales'])}, xarajat: {m(fm['expected_expenses'])}")
     print(f"  to'lovlar:      {m(fm['payments_due'])}")

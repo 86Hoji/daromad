@@ -1,7 +1,7 @@
 """REST API для будущего Mini App / сайта. Префикс /api.
 
 Идентификация: заголовок X-Telegram-Init-Data (подпись проверяется по BOT_TOKEN),
-без заголовка — магазин DEV_SHOP_ID (режим сайта/демо).
+без заголовка — бизнес DEV_SHOP_ID (режим сайта/демо).
 """
 from __future__ import annotations
 
@@ -62,11 +62,11 @@ def current_shop(x_telegram_init_data: str | None = Header(default=None)) -> dic
         user = data.get("user") or {}
         shop = db.get_shop_by_tg(int(user.get("id", 0)))
         if not shop:
-            raise HTTPException(status_code=404, detail="Do'kon topilmadi — avval botda /start bosing.")
+            raise HTTPException(status_code=404, detail="Biznes topilmadi — avval botda /start bosing.")
         return shop
     shop = db.get_shop(config.DEV_SHOP_ID)
     if not shop:
-        raise HTTPException(status_code=404, detail="Demo do'kon yo'q — `python seed.py --reset` ishga tushiring.")
+        raise HTTPException(status_code=404, detail="Demo biznes yo'q — `python seed.py --reset` ishga tushiring.")
     return shop
 
 

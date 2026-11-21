@@ -300,7 +300,7 @@ def build_facts(shop_id: int, question_date: str | None = None, today: date | No
 
     facts = {
         "bugun": today.isoformat(),
-        "kassada_hozir": round1000(fm["cash_now"]),
+        "hisobda_hozir": round1000(fm["cash_now"]),
         "keyingi_to'lovgacha": fm_view(fm),
         "sotuv": {}, "xarajat": {}, "foyda": {},
         "jami_qarzdorlik": round1000(fm["total_receivable"]),
@@ -352,7 +352,7 @@ def fallback_answer(question: str, facts: dict) -> str:
         return f"Xarajat: bugun {m(s['bugun'])}, shu hafta {m(s['shu_hafta'])}, shu oy {m(s['shu_oy'])}."
     f = facts["keyingi_to'lovgacha"]
     free = f["bo'sh_pul"]
-    return f"Kassada hozir {m(facts['kassada_hozir'])}. {f['sana']} gacha bo'sh pul: {m(free)}."
+    return f"Hisobingizda hozir {m(facts['hisobda_hozir'])}. {f['sana']} gacha bo'sh pul: {m(free)}."
 
 
 async def answer(shop_id: int, question: str, question_date: str | None = None, today: date | None = None) -> str:
