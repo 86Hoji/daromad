@@ -89,6 +89,13 @@ pip install -r backend\requirements.txt
 | `VOICE_REPLIES` | `1` (по умолчанию) — на вопрос, заданный голосом, бот отвечает текстом и голосовым; `0` — только текст |
 | `WEBAPP_URL` | https-адрес Mini App **с путём `/tg`** (например `https://<проект>.vercel.app/tg`), даёт кнопку-меню «Hisobim»; можно оставить пустым |
 | `DEV_SHOP_ID` | бизнес для API без Telegram-заголовка (демо), по умолчанию `1` |
+| `PUBLIC_BASE_URL` | адрес фронтенда для ссылки на оплату в SMS (`…/pay/<token>`); пусто — `WEBAPP_URL` без `/tg` |
+| `SMS_PROVIDER` | `mock` (по умолчанию: SMS пишется в `backend/data/outbox.jsonl`) или `eskiz` |
+| `ESKIZ_EMAIL` / `ESKIZ_PASSWORD` / `ESKIZ_FROM` | аккаунт Eskiz.uz для настоящих SMS |
+| `ESKIZ_TEST_MODE` | `1` (по умолчанию) — тестовый аккаунт Eskiz: уходит «Bu Eskiz dan test», в приложении виден настоящий текст |
+| `DEMO_DEBTOR_PHONE` / `SMS_ALLOWLIST` / `SMS_ALLOW_ANY` | защита от SMS незнакомцам: в режиме `eskiz` SMS уходят только на эти номера (`SMS_ALLOW_ANY=1` — в бою) |
+
+SMS-напоминания, оплата по ссылке и распознавание фото — модули `backend/extras` (подробно: [backend/extras/README.md](backend/extras/README.md)).
 
 Без `BOT_TOKEN` поднимается только API; без `GEMINI_API_KEY` не работает распознавание (бот отвечает понятной ошибкой).
 

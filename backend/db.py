@@ -95,6 +95,21 @@ CREATE TABLE IF NOT EXISTS drafts (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_drafts_batch ON drafts(batch_id);
+-- Ссылки на оплату долга (extras/payments.py): токен на 7 дней. sent_at = NULL — черновик из превью
+-- (SMS ещё не ушло, по ссылке платить нельзя). paid_at ставится один раз — повторная оплата невозможна.
+CREATE TABLE IF NOT EXISTS pay_links (
+    token TEXT PRIMARY KEY,
+    debt_id INTEGER NOT NULL REFERENCES debts(id),
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    sent_at TEXT,
+    paid_at TEXT,
+    paid_amount INTEGER,
+    sms_provider TEXT,
+    sms_id TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_pay_links_debt ON pay_links(debt_id);
 """
 
 # Денежные потоки вне P&L: принятые банковские офферы (овердрафт, вклад) и изъятия владельца.

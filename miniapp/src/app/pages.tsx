@@ -9,9 +9,9 @@ import { NextSteps } from "../features/NextSteps";
 import { AuditList, CategoryBars, Totals, TrustScale } from "../features/Report";
 import { useFeed, useReport } from "../hooks/useData";
 import { useLive } from "../lib/live";
-import { ddmm, money } from "../lib/format";
+import { TRUST_LABEL, ddmm, money } from "../lib/format";
 import { AnimatedNumber } from "../ui/AnimatedNumber";
-import { ErrorState, Segmented, Skeleton } from "../ui/bits";
+import { Chip, ErrorState, Segmented, Skeleton } from "../ui/bits";
 import { Rise } from "../ui/Rise";
 
 function PageTitle({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
@@ -151,6 +151,11 @@ export function AppDebts() {
                   <span>{d.person_name}</span>
                   <span className="num">
                     {money(d.amount)} · <span className="text-pos-text">qaytdi</span>
+                    {d.close_source && TRUST_LABEL[d.close_source] === "tasdiqlangan" && (
+                      <Chip tone="pos" className="ml-2">
+                        {d.close_source === "link" ? "havola orqali · " : ""}tasdiqlangan
+                      </Chip>
+                    )}
                   </span>
                 </li>
               ))}

@@ -1,10 +1,10 @@
-// /pay/:token — страница оплаты долга для клиента. Без навигации.
-// Эндпоинты делает второй разработчик (backend/extras); при 404 — demo-режим.
+// /pay/:token — страница оплаты долга для клиента (ссылка из SMS). Без навигации.
+// API: backend/extras/payments.py. /pay/demo и бэкенд без extras (404 без кода) — demo-режим.
 import { Check, LockKeyhole } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api, isNotFound, type PayInfo } from "../lib/api";
+import { api, errorCode, isMissingEndpoint, type PayInfo } from "../lib/api";
 import { money } from "../lib/format";
 import { haptic } from "../lib/telegram";
 import { Button } from "../ui/Button";
@@ -22,22 +22,41 @@ function normalize(raw: Record<string, unknown>): PayInfo {
   };
 }
 
+const ERRORS: Record<string, [string, string]> = {
+  token_expired: ["Havola muddati o'tgan", "To'lov havolasi 7 kun amal qiladi. Biznes egasidan yangisini so'rang."],
+  debt_closed: ["Qarz allaqachon yopilgan", "Bu qarz bo'yicha to'lov kerak emas. Rahmat!"],
+  not_found: ["Havola topilmadi", "Havola noto'g'ri yoki hali faollashmagan. Biznes egasidan yangisini so'rang."],
+  default: ["To'lov havolasi ishlamayapti", "Birozdan keyin qayta urinib ko'ring yoki biznes egasiga murojaat qiling."],
+};
+
 export function Pay() {
   const { token = "" } = useParams();
   const [info, setInfo] = useState<PayInfo | null>(null);
   const [state, setState] = useState<"form" | "paying" | "done" | "error">("form");
+  const [code, setCode] = useState<string | undefined>();
 
   useEffect(() => {
+    if (token === "demo") {
+      setInfo(DEMO);
+      return;
+    }
     api
       .payInfo(token)
       .then((r) => {
         const i = normalize(r);
         setInfo(i);
         if (i.status === "paid") setState("done");
+        else if (i.status === "closed") {
+          setCode("debt_closed");
+          setState("error");
+        }
       })
       .catch((e) => {
-        if (isNotFound(e)) setInfo(DEMO);
-        else setState("error");
+        if (isMissingEndpoint(e)) setInfo(DEMO);
+        else {
+          setCode(errorCode(e));
+          setState("error");
+        }
       });
   }, [token]);
 
@@ -50,11 +69,9 @@ export function Pay() {
       haptic("success");
       setState("done");
     } catch (e) {
-      if (isNotFound(e)) setState("done");
-      else {
-        haptic("error");
-        setState("error");
-      }
+      haptic("error");
+      setCode(errorCode(e));
+      setState("error");
     }
   };
 
@@ -79,8 +96,8 @@ export function Pay() {
 
           {state === "error" && (
             <div className="px-6 py-12 text-center">
-              <div className="mb-1 text-[18px] font-semibold">To'lov havolasi ishlamayapti</div>
-              <p className="text-[15px] text-ink-2">Havola eskirgan yoki noto'g'ri. Biznes egasidan yangisini so'rang.</p>
+              <div className="mb-1 text-[18px] font-semibold">{ERRORS[code ?? ""]?.[0] ?? ERRORS.default[0]}</div>
+              <p className="text-[15px] text-ink-2">{ERRORS[code ?? ""]?.[1] ?? ERRORS.default[1]}</p>
             </div>
           )}
 

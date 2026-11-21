@@ -116,7 +116,15 @@ def preview_reminder(debt_id: int, now: datetime | None = None) -> dict:
     last = _last_sent(debt_id)
     return {"debt_id": debt_id, "sms_text": text, "pay_url": url, "phone": mask_phone(debt.get("phone")),
             "can_send": reason is None, "reason": reason,
-            "next_allowed_at": payments._fmt(last + MIN_INTERVAL) if reason == "too_soon" else None}
+            "next_allowed_at": payments._fmt(last + MIN_INTERVAL) if reason == "too_soon" else None,
+            "sms_mode": sms_mode()}
+
+
+def sms_mode() -> str:
+    """Для подписи в окне напоминания: mock — SMS не уходит; eskiz_test — «Bu Eskiz dan test»; live — настоящее."""
+    if sms.provider() != "eskiz":
+        return "mock"
+    return "eskiz_test" if sms.eskiz_test_mode() else "live"
 
 
 def send_reminder(debt_id: int, now: datetime | None = None) -> dict:

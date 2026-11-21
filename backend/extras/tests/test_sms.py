@@ -13,7 +13,6 @@ URL = "http://localhost:8001/pay/" + "x" * 43            # как secrets.token_
 def isolated(monkeypatch, tmp_path):
     """Outbox во временной папке, режим mock, без настоящего .env."""
     monkeypatch.setattr(sms, "OUTBOX_PATH", tmp_path / "outbox.jsonl")
-    monkeypatch.setattr(sms, "EXTRAS_DIR", tmp_path)
     monkeypatch.setenv("SMS_PROVIDER", "mock")
     monkeypatch.setattr(sms, "_eskiz_token", None)
 

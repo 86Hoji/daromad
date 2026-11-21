@@ -49,7 +49,7 @@ def wipe(shop_id: int) -> int | None:
     shop = db.get_shop(shop_id)
     tg_user_id = shop["tg_user_id"] if shop else None
     with db.connect() as conn:
-        for table in ("debt_payments", "drafts", "entries", "debts", "scheduled_payments", "cash_flows", "offers",
+        for table in ("pay_links", "debt_payments", "drafts", "entries", "debts", "scheduled_payments", "cash_flows", "offers",
                       "audit_log"):
             conn.execute(f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
         conn.execute("DELETE FROM shops WHERE id=?", (shop_id,))
@@ -107,6 +107,8 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
                     (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, d.isoformat(), "bank"))
 
         for name, amount, ago, phone, consent in DEBTS:
+            if name == "Alisher" and config.DEMO_DEBTOR_PHONE:
+                phone = config.DEMO_DEBTOR_PHONE      # свой/командный номер: демо-SMS не уйдёт незнакомцу
             conn.execute(
                 "INSERT INTO debts (shop_id, person_name, phone, sms_consent, amount, remaining, created_at, status) "
                 "VALUES (?,?,?,?,?,?,?, 'open')",

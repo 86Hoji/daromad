@@ -241,21 +241,18 @@ def error_result(reason: str) -> dict:
 # --- вызов Gemini --------------------------------------------------------------------
 
 def _settings() -> tuple[str, list[str]]:
-    """-> (ключ, модели по порядку: GEMINI_MODEL, потом GEMINI_FALLBACK_MODELS через запятую)."""
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(EXTRAS_DIR / ".env")
-    except ImportError:
-        pass
-    key = os.getenv("GEMINI_API_KEY", "").strip()
-    main = os.getenv("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
-    fallbacks = os.getenv("GEMINI_FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
-    models = []
-    for m in [main, *fallbacks]:
-        m = m.strip()
-        if m and m not in models:
-            models.append(m)
-    return key, models
+    """-> (ключ, модели по порядку) — та же цепочка и «остывание» моделей, что у основного ai.py."""
+    import ai
+    import config
+    return config.GEMINI_API_KEY, ai._model_chain()
+
+
+def _cool_down(model: str) -> None:
+    """Модель упала по квоте/перегрузке: основной ai.py тоже пропустит её на COOLDOWN секунд."""
+    import time
+
+    import ai
+    ai._cooldown_until[model] = time.monotonic() + ai.COOLDOWN
 
 
 def _retryable(exc: BaseException) -> bool:
@@ -276,7 +273,8 @@ async def _call_gemini(image_bytes: bytes, mime: str, prompt: str, model: str, k
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=key)
+    import ai
+    client = ai._get_client() if key == ai.config.GEMINI_API_KEY else genai.Client(api_key=key)
     cfg = types.GenerateContentConfig(temperature=0.0, response_mime_type="application/json",
                                       response_schema=PhotoParsed)
     resp = await client.aio.models.generate_content(
@@ -318,7 +316,7 @@ async def aparse_photo(image_bytes: bytes, mime: str | None = None, today: date 
 
     key, models = _settings()
     if not key:
-        return error_result("GEMINI_API_KEY yo'q (backend/extras/.env)")
+        return error_result("GEMINI_API_KEY yo'q (backend/.env)")
 
     prompt = build_prompt(today)
     loop = asyncio.get_running_loop()
@@ -339,6 +337,7 @@ async def aparse_photo(image_bytes: bytes, mime: str | None = None, today: date 
             log.warning("vision: model %s failed: %s", model, last_error)
             if not _retryable(exc):
                 break
+            _cool_down(model)
     if text is None:
         return error_result(last_error)
 

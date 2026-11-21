@@ -1,41 +1,39 @@
-"""Ссылка на оплату долга: токен на 7 дней и подтверждение оплаты.
+"""Ссылка на оплату долга: токен на 7 дней и подтверждение оплаты. Хранение — таблица pay_links (db.py).
 
-    draft_token(debt_id) -> token                   # secrets.token_urlsafe(32), 7 дней, extras/tokens.json
-    pay_url(token) -> "{PUBLIC_BASE_URL}/pay/{token}"
+    draft_token(debt_id) -> token                   # secrets.token_urlsafe(32), 7 дней
+    pay_url(token) -> "{PUBLIC_BASE_URL}/pay/{token}"   # PUBLIC_BASE_URL = адрес фронтенда (страница /pay/:token)
     get_payment(token) -> {shop_name, person_name, amount, status, ...}   # что видит должник
     confirm_payment(token) -> {...}                 # закрывает остаток долга; повтор не списывает дважды
-    router                                          # FastAPI APIRouter: GET /api/pay/{token}, POST /api/pay/{token}/confirm
+    router                                          # GET /api/pay/{token}, POST /api/pay/{token}/confirm
 
-Запись токена: {debt_id, created_at, expires_at, sent_at, paid_at, paid_amount};
-sent_at = null — черновик из preview (SMS ещё не ушло).
+Запись: {debt_id, shop_id, created_at, expires_at, sent_at, paid_at, paid_amount, sms_provider, sms_id};
+sent_at = NULL — черновик из preview (SMS ещё не ушло).
 
-Ошибки — ExtrasError(code): not_found, token_expired, debt_closed (битая запись токена = not_found).
+Ошибки — ExtrasError(code): not_found, token_expired, debt_closed (битая запись = not_found).
 Оплата пока демо (кнопка на странице); при подключении Click/Payme confirm_payment
 вызывается из их callback после успешного платежа.
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
 import secrets
 import threading
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+import config
+import db
+
 from . import adapters, clock
 
-EXTRAS_DIR = Path(__file__).resolve().parent
-TOKENS_PATH = EXTRAS_DIR / "tokens.json"
 TOKEN_TTL = timedelta(days=7)
 TOKEN_LENGTH = 43                   # len(secrets.token_urlsafe(32))
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 
 _lock = threading.RLock()
-log = logging.getLogger("extras.payments")
+log = logging.getLogger("flowcast.extras.payments")
 
 
 class ExtrasError(Exception):
@@ -70,12 +68,7 @@ def _parse(s: str) -> datetime:
 
 
 def public_base_url() -> str:
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(EXTRAS_DIR / ".env")
-    except ImportError:
-        pass
-    return (os.getenv("PUBLIC_BASE_URL") or "http://localhost:8001").strip().rstrip("/")
+    return config.public_base_url()
 
 
 def pay_url(token: str) -> str:
@@ -90,98 +83,80 @@ def base_url_is_public() -> bool:
                                or host.endswith(".local") or host.endswith(".localhost"))
 
 
-# --- хранилище токенов ---------------------------------------------------------------
+# --- хранилище: таблица pay_links -----------------------------------------------------
+
+_COLS = ("debt_id", "shop_id", "created_at", "expires_at", "sent_at", "paid_at", "paid_amount", "sms_provider", "sms_id")
+
+
+def _rec(row) -> dict:
+    return {k: row[k] for k in _COLS}
+
 
 def load_tokens() -> dict[str, dict]:
-    with _lock:
-        if not TOKENS_PATH.exists():
-            return {}
-        try:
-            data = json.loads(TOKENS_PATH.read_text(encoding="utf-8") or "{}")
-        except json.JSONDecodeError:
-            return {}
-        return data if isinstance(data, dict) else {}
-
-
-def _save_tokens(tokens: dict[str, dict]) -> None:
-    TOKENS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = TOKENS_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(tokens, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(TOKENS_PATH)          # атомарно: файл не бывает наполовину записан
+    """Все ссылки {token: запись} (для тестов и отладки)."""
+    return {r["token"]: _rec(r) for r in db.query("SELECT * FROM pay_links ORDER BY created_at")}
 
 
 def create_token(debt_id: int, now: datetime | None = None) -> str:
     now = now or _now()
+    debt = adapters.get_debt(debt_id)
+    if debt is None:
+        raise ExtrasError("not_found", "debt not found")
     token = secrets.token_urlsafe(32)
-    with _lock:
-        tokens = load_tokens()
-        tokens[token] = {"debt_id": debt_id, "created_at": _fmt(now), "expires_at": _fmt(now + TOKEN_TTL),
-                         "sent_at": None, "paid_at": None, "paid_amount": None}
-        _save_tokens(tokens)
+    db.execute("INSERT INTO pay_links (token, debt_id, shop_id, created_at, expires_at) VALUES (?,?,?,?,?)",
+               (token, debt_id, debt["shop_id"], _fmt(now), _fmt(now + TOKEN_TTL)))
     return token
 
 
 def draft_token(debt_id: int, now: datetime | None = None) -> str:
-    """Неотправленный неоплаченный токен этого долга (из прошлого preview) или новый."""
+    """Неотправленный неоплаченный действующий токен этого долга (из прошлого preview) или новый."""
     now = now or _now()
     with _lock:
-        for tok, rec in sorted(load_tokens().items(), key=lambda kv: str(kv[1].get("created_at")), reverse=True):
-            if (isinstance(rec, dict) and rec.get("debt_id") == debt_id and "sent_at" in rec
-                    and rec["sent_at"] is None and rec.get("paid_at") is None):
-                try:
-                    if _parse(rec["expires_at"]) > now:
-                        return tok
-                except (KeyError, TypeError, ValueError):
-                    continue
-        return create_token(debt_id, now)
+        row = db.query_one("SELECT token FROM pay_links WHERE debt_id=? AND sent_at IS NULL AND paid_at IS NULL "
+                           "AND expires_at > ? ORDER BY created_at DESC LIMIT 1", (debt_id, _fmt(now)))
+        return row["token"] if row else create_token(debt_id, now)
 
 
 def mark_sent(token: str, now: datetime) -> None:
     """SMS со ссылкой уходит: отметить и продлить ссылку на 7 дней от отправки."""
-    with _lock:
-        tokens = load_tokens()
-        tokens[token].update(sent_at=_fmt(now), expires_at=_fmt(now + TOKEN_TTL))
-        _save_tokens(tokens)
+    db.execute("UPDATE pay_links SET sent_at=?, expires_at=? WHERE token=?",
+               (_fmt(now), _fmt(now + TOKEN_TTL), token))
 
 
 def set_sms(token: str, provider: str | None, sms_id: str | None) -> None:
     """Запомнить, каким провайдером и с каким id ушло SMS со ссылкой (для статуса доставки)."""
-    with _lock:
-        tokens = load_tokens()
-        if token in tokens:
-            tokens[token].update(sms_provider=provider, sms_id=sms_id)
-            _save_tokens(tokens)
+    db.execute("UPDATE pay_links SET sms_provider=?, sms_id=? WHERE token=?", (provider, sms_id, token))
 
 
 def unmark_sent(token: str) -> None:
     """SMS не ушло: снова черновик (попытка не считается за «раз в 3 дня»)."""
-    with _lock:
-        tokens = load_tokens()
-        if token in tokens:
-            tokens[token]["sent_at"] = None
-            _save_tokens(tokens)
+    db.execute("UPDATE pay_links SET sent_at=NULL WHERE token=?", (token,))
 
 
 def tokens_for_debt(debt_id: int) -> list[dict]:
-    return [dict(t, token=k) for k, t in load_tokens().items() if t.get("debt_id") == debt_id]
+    return [dict(_rec(r), token=r["token"]) for r in db.query("SELECT * FROM pay_links WHERE debt_id=?", (debt_id,))]
 
 
 # --- оплата ---------------------------------------------------------------------------
 
-def _get_valid(token: str, now: datetime) -> tuple[dict, dict]:
-    rec = load_tokens().get(token or "")
-    if not isinstance(rec, dict) or not {"debt_id", "expires_at"} <= rec.keys():
+def _get_valid(token: str, now: datetime, conn=None) -> tuple[dict, dict]:
+    sql = "SELECT * FROM pay_links WHERE token=?"
+    row = conn.execute(sql, (token or "",)).fetchone() if conn else db.query_one(sql, (token or "",))
+    if row is None:
         raise ExtrasError("not_found", "link not found")
-    if "sent_at" in rec and rec["sent_at"] is None:     # черновик из preview: SMS ещё не уходило
+    rec = _rec(row)
+    if rec["sent_at"] is None:                          # черновик из preview: SMS ещё не уходило
         raise ExtrasError("not_found", "link not sent yet")
-    debt = adapters.get_debt(rec["debt_id"])
-    if debt is None:
+    drow = (conn.execute("SELECT * FROM debts WHERE id=?", (rec["debt_id"],)).fetchone() if conn
+            else adapters.get_debt(rec["debt_id"]))
+    if drow is None:
         raise ExtrasError("not_found", "debt not found")
+    debt = dict(drow)
     try:
         expires = _parse(rec["expires_at"])
     except (TypeError, ValueError):
         raise ExtrasError("not_found", "link not found") from None
-    if rec.get("paid_at") is None and now > expires:
+    if rec["paid_at"] is None and now > expires:
         raise ExtrasError("token_expired", "link expired")
     return rec, debt
 
@@ -202,21 +177,23 @@ def get_payment(token: str, now: datetime | None = None) -> dict:
 
 
 def confirm_payment(token: str, now: datetime | None = None) -> dict:
-    """Оплатить остаток долга по ссылке. Повторный вызов возвращает ту же оплату (already_paid=True)."""
+    """Оплатить остаток долга по ссылке. Повторный вызов возвращает ту же оплату (already_paid=True).
+
+    Одна транзакция BEGIN IMMEDIATE: проверка ссылки, debt_payments (source='link'), закрытие долга и
+    paid_at — две параллельные оплаты (даже из разных процессов) не спишут дважды."""
     now = now or _now()
-    with _lock:
-        rec, debt = _get_valid(token, now)
-        if rec.get("paid_at") is not None:
+    with _lock, db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        rec, debt = _get_valid(token, now, conn)
+        if rec["paid_at"] is not None:
             return dict(_view(rec, debt), already_paid=True)
         if debt["status"] != "open" or debt["remaining"] <= 0:
             raise ExtrasError("debt_closed", "debt is already closed")
-
         amount = debt["remaining"]
-        debt = adapters.record_debt_payment(debt["id"], amount, source="link")
-        tokens = load_tokens()
-        tokens[token].update(paid_at=_fmt(now), paid_amount=amount)
-        _save_tokens(tokens)
-        rec = tokens[token]
+        debt = adapters.record_debt_payment(debt["id"], amount, source="link", conn=conn)
+        conn.execute("UPDATE pay_links SET paid_at=?, paid_amount=? WHERE token=? AND paid_at IS NULL",
+                     (_fmt(now), amount, token))
+        rec = dict(rec, paid_at=_fmt(now), paid_amount=amount)
 
     # Оплата уже записана: сбой журнала или уведомления не должен превращать её в ошибку для должника.
     try:

@@ -71,6 +71,17 @@ def current_shop(x_telegram_init_data: str | None = Header(default=None)) -> dic
     return shop
 
 
+def require_debt_owner(debt_id: int, shop: dict = Depends(current_shop)) -> dict:
+    """Маршруты /api/debts/{debt_id}/remind*: долг должен принадлежать магазину из initData.
+    Чужой или несуществующий долг — одинаково 404 not_found (не раскрываем, что такой id есть)."""
+    from extras.payments import ExtrasError
+
+    debt = db.query_one("SELECT shop_id FROM debts WHERE id=?", (debt_id,))
+    if not debt or debt["shop_id"] != shop["id"]:
+        raise ExtrasError("not_found", "debt not found")
+    return shop
+
+
 # --- утилиты ---------------------------------------------------------------------
 
 def rounded(obj: Any) -> Any:

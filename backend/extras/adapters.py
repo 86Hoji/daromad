@@ -1,126 +1,105 @@
-"""Доступ к данным для модулей extras.
+"""Доступ к данным для модулей extras — поверх основной БД (db.py).
 
-ЗАГЛУШКА: сейчас данные лежат в словарях в памяти. При склейке с основным бэком
-тела этих функций заменятся вызовами db.py (таблицы shops, debts, debt_payments,
-audit_log), а notify_owner — отправкой сообщения владельцу в бот.
-Остальные модули extras работают с данными ТОЛЬКО через эти функции.
+Таблицы: shops, debts, debt_payments (source='link' для оплаты по ссылке), audit_log; ссылки — pay_links
+(см. payments.py). notify_owner отправляет сообщение владельцу в бот (bot.py регистрирует отправителя
+через set_notifier при запуске). Остальные модули extras работают с данными только через эти функции.
 """
 from __future__ import annotations
 
-import copy
 import logging
-import os
-from pathlib import Path
+import sqlite3
+from collections import deque
+from typing import Callable
+
+import db
+
 from . import clock
 
-log = logging.getLogger("extras.adapters")
+log = logging.getLogger("flowcast.extras.adapters")
 
-ACTORS = ("owner", "system", "ai")          # как CHECK в audit_log основного db.py
+ACTORS = ("owner", "system", "ai")          # как CHECK в audit_log
 SOURCES = ("voice", "text", "photo", "bank", "link")
 
-_SEED_SHOPS = {1: {"id": 1, "name": "Dilshod do'koni", "owner_name": "Dilshod"}}
-_SEED_DEBTS = {
-    1: {"id": 1, "shop_id": 1, "person_name": "Alisher", "phone": "998901234567", "sms_consent": True,
-        "amount": 450_000, "remaining": 450_000, "status": "open", "created_at": "2026-11-01 10:00:00"},
-    2: {"id": 2, "shop_id": 1, "person_name": "Nigora opa", "phone": "998907654321", "sms_consent": False,
-        "amount": 300_000, "remaining": 300_000, "status": "open", "created_at": "2026-11-08 12:30:00"},
-    3: {"id": 3, "shop_id": 1, "person_name": "Bobur", "phone": None, "sms_consent": False,
-        "amount": 150_000, "remaining": 150_000, "status": "open", "created_at": "2026-11-15 18:00:00"},
-}
+IN_MEMORY = False                            # данные в SQLite: переживают перезапуск
 
-_shops: dict[int, dict] = {}
-_debts: dict[int, dict] = {}
-payments: list[dict] = []        # история оплат долгов
-audit_log: list[dict] = []       # журнал действий
-notifications: list[dict] = []   # что ушло бы владельцу в бот
+# последние уведомления владельцу (для логов, отладки и тестов)
+notifications: "deque[dict]" = deque(maxlen=50)
+_notifier: Callable[[int, str], None] | None = None
 
 
-def _now() -> str:
-    return clock.stamp()                        # время Ташкента, не сервера
+def set_notifier(fn: Callable[[int, str], None] | None) -> None:
+    """bot.py: fn(shop_id, text) отправляет сообщение владельцу. Вызывается из любого потока."""
+    global _notifier
+    _notifier = fn
 
 
-IN_MEMORY = True     # заглушка: данные живут в памяти и сбрасываются при перезапуске (с db.py станет False)
-
-
-def _demo_phone() -> str | None:
-    """Номер демо-должника (Alisher) из extras/.env: свой/командный, чтобы демо-SMS не ушло незнакомцу."""
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(Path(__file__).resolve().parent / ".env")
-    except ImportError:
-        pass
-    digits = "".join(ch for ch in os.getenv("DEMO_DEBTOR_PHONE", "") if ch.isdigit())
-    if len(digits) == 9:
-        digits = "998" + digits
-    return digits if len(digits) == 12 and digits.startswith("998") else None
-
-
-def reset() -> None:
-    """Вернуть демо-данные к исходным (для тестов и перезапуска демо)."""
-    _shops.clear()
-    _shops.update(copy.deepcopy(_SEED_SHOPS))
-    _debts.clear()
-    _debts.update(copy.deepcopy(_SEED_DEBTS))
-    phone = _demo_phone()
-    if phone:
-        _debts[1]["phone"] = phone
-    payments.clear()
-    audit_log.clear()
-    notifications.clear()
+def _debt_view(row) -> dict | None:
+    if row is None:
+        return None
+    d = dict(row)
+    d["sms_consent"] = bool(d.get("sms_consent"))
+    return d
 
 
 def get_shop(shop_id: int) -> dict | None:
-    shop = _shops.get(shop_id)
-    return dict(shop) if shop else None
+    return db.get_shop(shop_id)
 
 
 def get_debt(debt_id: int) -> dict | None:
-    debt = _debts.get(debt_id)
-    return dict(debt) if debt else None
+    return _debt_view(db.query_one("SELECT * FROM debts WHERE id=?", (debt_id,)))
 
 
-def record_debt_payment(debt_id: int, amount: int, source: str = "link") -> dict:
-    """Уменьшает остаток долга, закрывает его при 0. Возвращает долг после оплаты.
+def record_debt_payment(debt_id: int, amount: int, source: str = "link",
+                        conn: sqlite3.Connection | None = None) -> dict:
+    """Уменьшает остаток долга, закрывает его при 0 и пишет debt_payments. Возвращает долг после оплаты.
 
-    Платёж больше остатка засчитывается только на остаток (в минус не уходим).
+    Платёж больше остатка засчитывается только на остаток. conn — чтобы оплата по ссылке шла одной
+    транзакцией с отметкой ссылки (payments.confirm_payment).
     """
-    debt = _debts.get(debt_id)
-    if debt is None:
-        raise KeyError(f"debt {debt_id} not found")
-    if debt["status"] != "open":
-        raise ValueError(f"debt {debt_id} is already closed")
-    if amount <= 0:
-        raise ValueError("amount must be positive")
     if source not in SOURCES:
         raise ValueError(f"unknown source {source!r}")
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    if conn is None:
+        with db.connect() as c:
+            return record_debt_payment(debt_id, amount, source, c)
 
-    paid = min(amount, debt["remaining"])
-    debt["remaining"] -= paid
-    payments.append({"debt_id": debt_id, "shop_id": debt["shop_id"], "amount": paid,
-                     "source": source, "created_at": _now()})
-    if debt["remaining"] == 0:
-        debt["status"] = "closed"
-        debt["closed_at"] = _now()
-        debt["close_source"] = source
-    return dict(debt)
+    row = conn.execute("SELECT * FROM debts WHERE id=?", (debt_id,)).fetchone()
+    if row is None:
+        raise KeyError(f"debt {debt_id} not found")
+    debt = dict(row)
+    if debt["status"] != "open" or debt["remaining"] <= 0:
+        raise ValueError(f"debt {debt_id} is already closed")
+    paid = min(int(amount), debt["remaining"])
+    remaining = debt["remaining"] - paid
+    now = clock.stamp()
+    if remaining == 0:
+        conn.execute("UPDATE debts SET remaining=0, status='closed', closed_at=?, close_source=? WHERE id=?",
+                     (now, source, debt_id))
+    else:
+        conn.execute("UPDATE debts SET remaining=? WHERE id=?", (remaining, debt_id))
+    conn.execute("INSERT INTO debt_payments (debt_id, shop_id, amount, date, source, created_at) VALUES (?,?,?,?,?,?)",
+                 (debt_id, debt["shop_id"], paid, clock.today().isoformat(), source, now))
+    return _debt_view(conn.execute("SELECT * FROM debts WHERE id=?", (debt_id,)).fetchone())
 
 
 def add_audit(shop_id: int | None, actor: str, action: str, payload: dict | None = None) -> None:
     if actor not in ACTORS:
         raise ValueError(f"actor must be one of {ACTORS}")
-    audit_log.append({"shop_id": shop_id, "actor": actor, "action": action,
-                      "payload": payload, "created_at": _now()})
+    db.audit(shop_id, actor, action, payload)
 
 
 def notify_owner(shop_id: int, text: str) -> None:
-    """Потом: сообщение владельцу в бот. Сейчас: лог."""
-    notifications.append({"shop_id": shop_id, "text": text, "created_at": _now()})
+    """Сообщение владельцу в бот (если бот запущен) + строка в консоли uvicorn. Ошибки не бросаются."""
+    notifications.append({"shop_id": shop_id, "text": text, "created_at": clock.stamp()})
     log.info("notify_owner shop=%s: %s", shop_id, text)
     line = f"[owner shop={shop_id}] {text}"
     try:
-        print(line, flush=True)                              # видно в консоли uvicorn на демо
+        print(line, flush=True)
     except UnicodeEncodeError:                               # консоль не UTF-8 (Windows, вывод в файл)
         print(line.encode("ascii", "replace").decode("ascii"), flush=True)
-
-
-reset()
+    if _notifier is not None:
+        try:
+            _notifier(shop_id, text)
+        except Exception:
+            log.exception("notify_owner: bot send failed")

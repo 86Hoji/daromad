@@ -10,7 +10,19 @@ from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from extras import adapters, dev_app, payments, sms
+from fastapi import FastAPI
+
+from extras import adapters, payments, reminders, sms
+from extras.tests.conftest import add_debt, add_shop, pays
+
+
+def chain_client() -> TestClient:
+    """Роутеры extras без авторизации: здесь проверяется цепочка на разных магазинах;
+    доступ «только свой долг» — в test_reminders_payments.py (через main.app)."""
+    app = FastAPI()
+    app.include_router(reminders.router)
+    app.include_router(payments.router)
+    return TestClient(app)
 
 SHOPS = {
     10: {"id": 10, "name": "Gʻayrat aka magazini", "owner_name": "Gʻayrat"},        # ʻ (U+02BB)
@@ -30,19 +42,12 @@ DEBTS = [
 
 @pytest.fixture(autouse=True)
 def new_world(monkeypatch, tmp_path):
-    adapters.reset()
-    monkeypatch.setattr(payments, "TOKENS_PATH", tmp_path / "tokens.json")
-    monkeypatch.setattr(payments, "EXTRAS_DIR", tmp_path)
     monkeypatch.setattr(sms, "OUTBOX_PATH", tmp_path / "outbox.jsonl")
-    monkeypatch.setattr(sms, "EXTRAS_DIR", tmp_path)
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowcast-demo.up.railway.app")
-    adapters._shops.update({k: dict(v) for k, v in SHOPS.items()})
+    for sid, shop in SHOPS.items():
+        add_shop(sid, shop["name"], shop["owner_name"])
     for did, shop, person, phone, amount, remaining in DEBTS:
-        adapters._debts[did] = {"id": did, "shop_id": shop, "person_name": person, "phone": phone,
-                                "sms_consent": True, "amount": amount, "remaining": remaining,
-                                "status": "open", "created_at": "2026-11-20 09:00:00"}
-    yield
-    adapters.reset()
+        add_debt(did, shop, person, phone, 1, amount, remaining)
 
 
 def money(n: int) -> str:
@@ -55,7 +60,7 @@ def norm(phone: str) -> str:
 
 @pytest.mark.parametrize("did,shop,person,phone,amount,remaining", DEBTS, ids=[str(d[0]) for d in DEBTS])
 def test_full_chain_on_new_debt(did, shop, person, phone, amount, remaining, capsys):
-    c = TestClient(dev_app.app)
+    c = chain_client()
     p = c.post(f"/api/debts/{did}/remind/preview").json()
     assert p["can_send"] is True, p
     text = p["sms_text"]
@@ -79,14 +84,14 @@ def test_full_chain_on_new_debt(did, shop, person, phone, amount, remaining, cap
     second = c.post(f"/api/pay/{tok}/confirm").json()
     assert first["already_paid"] is False and second["already_paid"] is True
     assert adapters.get_debt(did)["status"] == "closed" and adapters.get_debt(did)["remaining"] == 0
-    assert [x["amount"] for x in adapters.payments] == [remaining]   # списано ровно один раз
+    assert [x["amount"] for x in pays()] == [remaining]   # списано ровно один раз
     assert adapters.notifications[-1]["text"] == f"{person or 'Mijoz'} to'ladi ✅ {money(remaining)} so'm"
     assert f"to'ladi ✅ {money(remaining)} so'm" in capsys.readouterr().out
     assert c.post(f"/api/debts/{did}/remind").json()["error"] == "debt_closed"
 
 
 def test_shop_and_person_names_transliterated_and_quotes_safe():
-    c = TestClient(dev_app.app)
+    c = chain_client()
     t_uz = c.post("/api/debts/102/remind/preview").json()["sms_text"]
     t_ru = c.post("/api/debts/103/remind/preview").json()["sms_text"]
     assert "G'ayrat aka" in t_uz                                         # магазин узнаваем, не «G'ay.»
@@ -97,7 +102,7 @@ def test_shop_and_person_names_transliterated_and_quotes_safe():
 
 def test_all_new_debts_in_parallel_one_sms_each():
     from concurrent.futures import ThreadPoolExecutor
-    c = TestClient(dev_app.app)
+    c = chain_client()
     ids = [d[0] for d in DEBTS] * 3                                   # каждый долг — 3 нажатия сразу
     with ThreadPoolExecutor(12) as ex:
         codes = list(ex.map(lambda i: c.post(f"/api/debts/{i}/remind").json().get("status", "x"), ids))
@@ -127,7 +132,7 @@ def test_sms_text_random_fuzz():
 
 
 def test_expiry_is_counted_from_send_not_preview():
-    c = TestClient(dev_app.app)
+    c = chain_client()
     p = c.post("/api/debts/101/remind/preview").json()
     tok = p["pay_url"].rsplit("/", 1)[1]
     created = payments.load_tokens()[tok]["created_at"]

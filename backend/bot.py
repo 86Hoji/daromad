@@ -1,6 +1,7 @@
 """Telegram-бот Flowcast (aiogram 3). Тексты — узбекский (латиница). Все цифры — из logic."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, datetime, timedelta
 
@@ -316,15 +317,19 @@ async def send_voice_reply(message: Message, text: str) -> None:
 
 
 async def run_pipeline(message: Message, *, text: str | None = None, audio: bytes | None = None,
-                       mime_type: str = "audio/ogg", source: str) -> None:
+                       image: bytes | None = None, mime_type: str = "audio/ogg", source: str) -> None:
     shop = current_shop(message.from_user.id)
     if not shop:
         await message.answer("Avval /start bosib, biznesingizni qo'shing.")
         return
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    wait = await message.answer("⏳ Tinglayapman..." if audio else "⏳ O'qiyapman...")
+    wait = await message.answer("⏳ Tinglayapman..." if audio else "⏳ Rasmni o'qiyapman..." if image
+                                else "⏳ O'qiyapman...")
     try:
-        result = await pipeline.process(shop["id"], text=text, audio=audio, mime_type=mime_type, source=source)
+        if image is not None:
+            result = await pipeline.process_photo(shop["id"], image, mime_type)
+        else:
+            result = await pipeline.process(shop["id"], text=text, audio=audio, mime_type=mime_type, source=source)
     except ai.AIUnavailable as exc:
         await wait.edit_text(f"😔 {esc(str(exc))}")
         return
@@ -357,7 +362,21 @@ async def on_voice(message: Message) -> None:
 
 @router.message(StateFilter(None), F.photo)
 async def on_photo(message: Message) -> None:
-    await message.answer("📷 Chek/skrinshotni tanish keyingi bosqichda qo'shiladi. Hozircha ovoz yoki matn yuboring.")
+    """Фото чека / накладной / скриншота Payme-Click -> черновики -> To'g'ri / Tuzatish."""
+    buf = await message.bot.download(message.photo[-1])          # самое большое разрешение
+    await run_pipeline(message, image=buf.read(), mime_type="image/jpeg", source="photo")
+
+
+@router.message(StateFilter(None), F.document)
+async def on_document(message: Message) -> None:
+    """Фото, отправленное «файлом» (без сжатия), или PDF накладной."""
+    doc = message.document
+    mime = (doc.mime_type or "").lower()
+    if not (mime.startswith("image/") or mime == "application/pdf"):
+        await message.answer("Chek, nakladnoy yoki skrinshot rasmini yuboring (JPG, PNG yoki PDF).")
+        return
+    buf = await message.bot.download(doc)
+    await run_pipeline(message, image=buf.read(), mime_type=mime, source="photo")
 
 
 @router.message(StateFilter(None), F.text & ~F.text.startswith("/"))
@@ -433,7 +452,7 @@ async def cb_remind(cq: CallbackQuery) -> None:
     for d in debtors:
         lines.append(
             f"\n<b>{esc(d['person_name'])}</b>"
-            + (" — SMS roziligi bor (avtomatik SMS keyingi bosqichda)" if d["sms_consent"] else "")
+            + (" — SMS roziligi bor: ilovada «Eslatish» SMS va to'lov havolasini yuboradi" if d["sms_consent"] else "")
             + f"\n<code>Assalomu alaykum, {esc(d['person_name'])}! «{esc(shop['name'])}» dan eslatma: "
               f"{money(d['remaining'])} so'm qarzingiz bor. Imkoningiz bo'lsa, qaytarib bering. Rahmat!</code>")
     db.audit(shop["id"], "owner", "reminders_shown", {"debtors": [d["id"] for d in debtors]})
@@ -505,6 +524,40 @@ async def cb_offer(cq: CallbackQuery) -> None:
     else:
         note = "Rad etildi."
     await cq.message.edit_text(cq.message.html_text + f"\n\n{note}", reply_markup=None)
+
+
+# --- уведомления владельцу из extras (оплата по ссылке) ----------------------------
+
+def owner_payment_text(shop_id: int, text: str) -> str:
+    """«Alisher to'ladi ✅ 450 000 so'm» + новые свободные деньги — владелец сразу видит эффект."""
+    try:
+        free = logic.free_money(shop_id)["free_money"]
+        tail = f"\nBo'sh pul endi: <b>{money(free)} so'm</b>"
+    except Exception:
+        tail = ""
+    return f"{esc(text)}\n<i>havola orqali · tasdiqlangan</i>{tail}"
+
+
+def install_owner_notifier(bot: Bot, loop: asyncio.AbstractEventLoop) -> None:
+    """extras.adapters.notify_owner -> сообщение владельцу. Оплата приходит из потока FastAPI (sync-роут),
+    поэтому корутина отправляется в цикл бота через run_coroutine_threadsafe."""
+    from extras import adapters
+
+    def send(shop_id: int, text: str) -> None:
+        shop = db.get_shop(shop_id)
+        if not shop or not shop.get("tg_user_id"):
+            return
+        coro = bot.send_message(shop["tg_user_id"], owner_payment_text(shop_id, text))
+        try:
+            same_loop = asyncio.get_running_loop() is loop
+        except RuntimeError:
+            same_loop = False
+        if same_loop:
+            loop.create_task(coro)
+        else:
+            asyncio.run_coroutine_threadsafe(coro, loop)
+
+    adapters.set_notifier(send)
 
 
 # --- сборка -----------------------------------------------------------------------

@@ -8,7 +8,8 @@ if (typeof window !== "undefined" && window.location.protocol === "https:" && AP
   console.warn(`[Flowcast] Sahifa https, API esa ${API_URL} — brauzer so'rovlarni bloklaydi. VITE_API_URL ni https qiling.`);
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** code — машинный код ошибки extras: {"error": "no_consent", "detail": ...} */
+  constructor(public status: number, message: string, public code?: string) {
     super(message);
   }
 }
@@ -25,13 +26,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
     try {
       const body = await res.json();
       detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
+      if (typeof body.error === "string") code = body.error;
     } catch {
       /* не JSON */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code);
   }
   return res.json() as Promise<T>;
 }
@@ -248,10 +251,31 @@ export interface OfferResult {
   horizon: string;
 }
 
+export type RemindReason =
+  | "not_found" | "debt_closed" | "no_phone" | "no_consent" | "too_soon" | "sms_failed" | "link_too_long"
+  | "phone_not_allowed" | "link_not_public" | "token_expired";
+
+/** POST /api/debts/{id}/remind/preview (backend/extras/reminders.py) */
 export interface RemindPreview {
-  text: string;
-  phone?: string | null;
-  demo?: boolean;
+  debt_id: number;
+  sms_text: string | null;
+  pay_url: string | null;
+  phone: string | null;
+  can_send: boolean;
+  reason: RemindReason | null;
+  next_allowed_at: string | null;
+  /** mock — SMS не уходит; eskiz_test — уходит «Bu Eskiz dan test»; live — настоящее SMS */
+  sms_mode?: "mock" | "eskiz_test" | "live";
+}
+
+export interface RemindSent {
+  status: "sent";
+  sms_text: string;
+  pay_url: string;
+  sent_at: string;
+  expires_at: string;
+  sms_test_mode: boolean;
+  provider: string;
 }
 
 export interface PayInfo {
@@ -298,9 +322,12 @@ export const api = {
 
   // backend/extras (второй разработчик). При 404 экран переходит в demo-режим.
   remindPreview: (id: number) => post<RemindPreview>(`/api/debts/${id}/remind/preview`),
-  remindSend: (id: number) => post<{ status?: string }>(`/api/debts/${id}/remind`),
+  remindSend: (id: number) => post<RemindSent>(`/api/debts/${id}/remind`),
   payInfo: (token: string) => request<Record<string, unknown>>(`/api/pay/${encodeURIComponent(token)}`),
   payConfirm: (token: string) => post<Record<string, unknown>>(`/api/pay/${encodeURIComponent(token)}/confirm`),
 };
 
 export const isNotFound = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 405);
+/** Эндпоинта нет совсем (старый бэкенд без extras) — 404/405 без кода ошибки extras. */
+export const isMissingEndpoint = (e: unknown) => isNotFound(e) && !(e as ApiError).code;
+export const errorCode = (e: unknown) => (e instanceof ApiError ? e.code : undefined);

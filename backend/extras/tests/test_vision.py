@@ -287,21 +287,18 @@ def test_total_deadline_stops_trying(monkeypatch):
     assert tried == ["model-a"] and "timeout" in r["transcript"]
 
 
-def test_settings_order_and_dedup(monkeypatch):
+def test_settings_use_main_ai_chain(monkeypatch):
+    """Ключ и цепочка моделей — те же, что у основного ai.py (с «остыванием» упавших моделей)."""
+    import ai
+    import config
     monkeypatch.undo()
-    monkeypatch.setenv("GEMINI_API_KEY", "k")
-    monkeypatch.setenv("GEMINI_MODEL", "m1")
-    monkeypatch.setenv("GEMINI_FALLBACK_MODELS", " m2, m1 ,,m3")
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(config, "GEMINI_MODEL", "m1")
+    monkeypatch.setattr(ai, "FALLBACK_MODELS", ("m2", "m1", "m3"))
+    monkeypatch.setattr(ai, "_cooldown_until", {})
     assert vision._settings() == ("k", ["m1", "m2", "m3"])
-
-
-def test_settings_defaults(monkeypatch):
-    monkeypatch.undo()
-    monkeypatch.setenv("GEMINI_API_KEY", "k")
-    monkeypatch.setenv("GEMINI_MODEL", "")
-    monkeypatch.delenv("GEMINI_FALLBACK_MODELS", raising=False)
-    monkeypatch.setattr(vision, "EXTRAS_DIR", vision.Path("/nonexistent"))
-    assert vision._settings() == ("k", [vision.DEFAULT_MODEL, "gemini-3.5-flash-lite"])
+    vision._cool_down("m2")                                # упала по квоте -> основной ai.py тоже её пропустит
+    assert vision._settings() == ("k", ["m1", "m3"]) and ai._model_chain() == ["m1", "m3"]
 
 
 def test_empty_file(monkeypatch):

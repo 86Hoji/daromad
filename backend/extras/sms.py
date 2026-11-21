@@ -4,8 +4,8 @@
     normalize_phone("+998 90 123-45-67") -> "998901234567"           # неверный номер -> ValueError
     send_sms(phone, text) -> {"status", "provider", "id", ...}
 
-Режим — переменная SMS_PROVIDER в backend/extras/.env:
-    mock  (по умолчанию) — SMS не уходит, а пишется в лог и в extras/outbox.jsonl (для демо);
+Режим — переменная SMS_PROVIDER в backend/.env:
+    mock  (по умолчанию) — SMS не уходит, а пишется в лог и в backend/data/outbox.jsonl (для демо);
     eskiz — настоящая отправка через Eskiz.uz (нужны ESKIZ_EMAIL и ESKIZ_PASSWORD).
 Только сервисный текст (сумма долга и ссылка на оплату), без рекламы.
 """
@@ -18,10 +18,11 @@ import re
 import uuid
 from pathlib import Path
 
-log = logging.getLogger("extras.sms")
+log = logging.getLogger("flowcast.extras.sms")
 
-EXTRAS_DIR = Path(__file__).resolve().parent
-OUTBOX_PATH = EXTRAS_DIR / "outbox.jsonl"
+import config  # noqa: E402
+
+OUTBOX_PATH = config.BASE_DIR / "data" / "outbox.jsonl"     # backend/data/ в .gitignore
 MAX_LEN = 160                      # одно SMS латиницей (GSM-7)
 MIN_SHOP_CHARS = 10                # название магазина короче не обрезаем — иначе не узнать, кто пишет
 PROVIDERS = ("mock", "eskiz")
@@ -129,12 +130,7 @@ def normalize_phone(raw) -> str:
 # --- отправка -------------------------------------------------------------------------
 
 def _env(name: str, default: str = "") -> str:
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(EXTRAS_DIR / ".env")
-    except ImportError:
-        pass
-    return os.getenv(name, default).strip()
+    return config.env(name, default)
 
 
 def provider() -> str:
@@ -229,7 +225,7 @@ def _eskiz_login(client) -> str:
 
 
 def eskiz_test_mode() -> bool:
-    return _env("ESKIZ_TEST_MODE", "0").lower() in _TRUE
+    return _env("ESKIZ_TEST_MODE", config.ESKIZ_TEST_MODE_DEFAULT).lower() in _TRUE
 
 
 def _send_eskiz(number: str, text: str) -> dict:

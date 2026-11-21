@@ -157,6 +157,37 @@ async def process(shop_id: int, *, text: str | None = None, audio: bytes | None 
     return result
 
 
+async def process_photo(shop_id: int, image: bytes, mime_type: str | None = None,
+                        today: date | None = None) -> dict:
+    """Фото накладной / чека / скриншота Payme-Click -> черновики (source='photo'). Ничего не сохраняет
+    без «To'g'ri». Gemini читает картинку (extras.vision), суммы и типы проверяет код."""
+    from extras import vision
+
+    today = today or date.today()
+    parsed = await vision.aparse_photo(image, mime_type, today)
+    transcript = parsed.get("transcript") or ""
+    db.audit(shop_id, "ai", "parsed", {"source": "photo", "intent": "record",
+                                       "transcript": transcript, "events": parsed["events"]})
+    result = {"intent": "record", "transcript": transcript, "batch_id": None, "drafts": [], "errors": [],
+              "answer": None, "voice_text": None}
+    if transcript.startswith("error:"):
+        result["transcript"] = ""
+        result["errors"].append("Rasmni o'qib bo'lmadi. Aniqroq suratga olib qayta yuboring yoki ovoz bilan ayting.")
+        return result
+    valid = []
+    for ev in parsed["events"]:
+        norm, err = validate_event(ev, today)
+        if err:
+            result["errors"].append(err)
+        else:
+            valid.append(norm)
+    if valid:
+        result["batch_id"], result["drafts"] = save_drafts(shop_id, valid, "photo")
+    elif not result["errors"]:
+        result["errors"].append("Rasmda summa topilmadi. Chek, nakladnoy yoki Payme/Click skrinshotini yuboring.")
+    return result
+
+
 def reject(shop_id: int, ids: list[int] | None = None, batch_id: str | None = None) -> int:
     drafts = get_drafts(shop_id, ids=ids, batch_id=batch_id)
     for d in drafts:

@@ -7,15 +7,20 @@
 - Оставлено намеренно: слово «daromad» (узб. «доход») в тексте про доход по вкладу; пути `C:\venvs\daromad`,
   файл `daromad.db`, переменная `DAROMAD_DB`, ключ localStorage — это идентификаторы, не пользовательский текст.
 
-## Блок 3 — склейка с модулями Темура (backend/extras) — ОТЛОЖЕН
-- [ ] По просьбе владельца пропущен: ветка `origin/feature/extras` ещё не готова, ничего не вливалось.
-      Когда будет готова: merge в main, реальные адаптеры (debts, debt_payments, audit_log, shops, notify_owner),
-      роутеры reminders/payments в main.py, фото -> vision.parse_photo -> черновики (source=photo), Eskiz в тестовом
-      режиме (ESKIZ_TEST_MODE=1), фронт «Eslatish» и /pay/:token на реальные эндпоинты (demo-фолбэк на 404 уже есть).
+## Блок 3 — склейка с модулями Темура (backend/extras) — СДЕЛАНО
+- [x] `origin/feature/extras` влита в main; adapters -> db.py, ссылки — таблица `pay_links`, роутеры в main.py
+      (владелец — только свой долг), настройки в `backend/.env`, фото в боте -> черновики (source=photo),
+      фронт «Eslatish» и /pay/:token на реальных эндпоинтах, владельцу в бот «✅ to'ladi».
+- [ ] Для SMS на телефон: аккаунт Eskiz.uz -> `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `SMS_PROVIDER=eskiz`,
+      `DEMO_DEBTOR_PHONE` (свой номер) в `backend/.env`. Пока `ESKIZ_TEST_MODE=1` — уходит «Bu Eskiz dan test».
+- [ ] Распознавание фото проверено только на тестах с фейками: дневная квота Gemini 22.11 исчерпана. Один раз отправить
+      боту фото чека/накладной, когда квота вернётся.
+- [ ] Click/Payme не подключены: «To'lash» на странице оплаты — демо-кнопка (confirm_payment готов к их callback).
 
 ## Деплой
 - [ ] Vercel: создать проект (Root Directory `miniapp`), задать `VITE_API_URL` (печатает `scripts\start_demo.ps1`) и `VITE_BOT_URL`.
-- [ ] `backend/.env`: `WEBAPP_URL=https://<проект>.vercel.app/tg`, `DEMO_RESET=1` на время показа.
+- [ ] `backend/.env`: `WEBAPP_URL=https://<проект>.vercel.app/tg` (ссылка в SMS берёт адрес отсюда, или задать
+      `PUBLIC_BASE_URL=https://<проект>.vercel.app`), `DEMO_RESET=1` на время показа.
 - [ ] @BotFather: Menu Button -> `https://<проект>.vercel.app/tg`.
 
 ## Квоты Gemini на день защиты — ВАЖНО

@@ -1,6 +1,6 @@
 """Проверка точности ИИ на эталонных примерах: текст, голос, фото.
 
-Запуск из backend/ (нужен GEMINI_API_KEY в extras/.env или backend/.env):
+Запуск из backend/ (нужен GEMINI_API_KEY в backend/.env):
     extras/.venv/bin/python -m extras.eval_ai                  # все примеры
     extras/.venv/bin/python -m extras.eval_ai --only photo     # text | audio | photo
     extras/.venv/bin/python -m extras.eval_ai --ids t01_sale,p03_payme
@@ -211,7 +211,7 @@ Runner = Callable[[dict, date], Awaitable[dict]]
 
 
 def _setup_main_ai() -> list[str]:
-    """Основной ai.py берёт ключ из backend/.env; если там пусто — из extras/.env. -> список моделей."""
+    """Ключ и цепочка моделей — из backend/.env и основного ai.py. -> список моделей."""
     import ai
     import config
     from . import vision
@@ -220,7 +220,7 @@ def _setup_main_ai() -> list[str]:
         config.GEMINI_API_KEY = key
         ai._client = None
     if not config.GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY yo'q: extras/.env ga yozing")
+        raise RuntimeError("GEMINI_API_KEY yo'q: backend/.env ga yozing")
     return models
 
 

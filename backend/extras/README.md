@@ -1,81 +1,48 @@
 # Flowcast extras
 
-Модули второго разработчика. Живут отдельно от основного бэка (`backend/*.py`) и пока не
-меняют его файлы. Данные берут только через `adapters.py`: при склейке с `db.py` меняется
-один этот файл.
+Модули второго разработчика (Темур): фото накладных, SMS-напоминания должнику, оплата долга по ссылке,
+проверка точности ИИ. **Склеены с основным бэком** (ноябрь 2026): данные — в той же SQLite через
+`adapters.py` → `db.py`, роутеры подключены в `main.py`, настройки — в `backend/.env`.
 
 | Модуль | Что делает |
 |---|---|
-| `adapters.py` | доступ к магазину, долгам, оплатам, журналу; сейчас — демо-данные в памяти |
-| `vision.py` | фото накладной / чека / скриншота Payme-Click → события Flowcast (Gemini + проверка кодом) |
+| `adapters.py` | магазин, долги, `debt_payments` (`source='link'`), `audit_log` через `db.py`; `notify_owner` → сообщение владельцу в бот |
+| `vision.py` | фото накладной / чека / скриншота Payme-Click → события Flowcast (Gemini + проверка кодом); ключ и цепочка моделей — из основного `ai.py` |
 | `sms.py` | текст напоминания (узбекский, ≤160 символов), номер, отправка: `mock` или Eskiz |
-| `payments.py` | ссылка на оплату долга: токен на 7 дней, подтверждение без двойного списания; `router` (APIRouter) |
-| `reminders.py` | напоминание должнику: проверки → ссылка → SMS → журнал; `router` (APIRouter) |
-| `dev_app.py` | FastAPI на порту 8001 для проверки: подключает оба роутера (только JSON) |
+| `payments.py` | ссылка на оплату: токен на 7 дней в таблице `pay_links`, подтверждение одной транзакцией без двойного списания; `router` |
+| `reminders.py` | напоминание должнику: проверки → ссылка → SMS → журнал; `router` |
 | `eval_ai.py` | проверка точности ИИ на эталонных примерах (текст, голос, фото) |
 
 Принцип тот же, что у основного бэка: ИИ только извлекает данные, суммы и правила проверяет код,
 запись подтверждает человек.
 
-## Установка (macOS / Linux)
+Установка не нужна: общий venv и `backend/requirements.txt` (новых зависимостей у extras нет).
 
-Из папки `backend/`:
-
-```bash
-python3 -m venv extras/.venv
-```
-
-```bash
-extras/.venv/bin/pip install -r extras/requirements-extras.txt
-```
-
-```bash
-cp extras/.env.example extras/.env
-```
-
-Windows: `py -3.12 -m venv extras\.venv`, дальше `extras\.venv\Scripts\python.exe` вместо `extras/.venv/bin/python`.
-
-## Настройка `extras/.env`
+## Настройки (`backend/.env`)
 
 Файл в `.gitignore`. Ключи и пароли пишутся только сюда, **никогда** в `.env.example`.
 
 | Ключ | Значение |
 |---|---|
-| `GEMINI_API_KEY` | ключ из Google AI Studio |
-| `GEMINI_MODEL` | основная модель, по умолчанию `gemini-3.5-flash` |
-| `GEMINI_FALLBACK_MODELS` | запасные через запятую, по умолчанию `gemini-3.5-flash-lite`; берутся при 503/429/404/таймауте |
-| `PUBLIC_BASE_URL` | адрес, с которого открывается ссылка на оплату; для телефона нужен публичный https |
-| `SMS_PROVIDER` | `mock` — SMS пишется в `extras/outbox.jsonl`; `eskiz` — настоящая отправка |
+| `PUBLIC_BASE_URL` | адрес **фронтенда**: ссылка в SMS = `PUBLIC_BASE_URL/pay/<token>` (страница оплаты в Mini App); пусто → `WEBAPP_URL` без `/tg`, иначе `http://localhost:5173` |
+| `SMS_PROVIDER` | `mock` (по умолчанию) — SMS пишется в `backend/data/outbox.jsonl`; `eskiz` — настоящая отправка |
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD` | вход в кабинет Eskiz (notify.eskiz.uz) |
 | `ESKIZ_FROM` | имя отправителя, по умолчанию `4546` |
-| `ESKIZ_TEST_MODE` | `1` — тестовый аккаунт Eskiz: уходит «Bu Eskiz dan test», владелец в Mini App видит настоящий текст; `0` — после договора с Eskiz |
-| `DEMO_DEBTOR_PHONE` | свой или командный номер: им становится телефон демо-должника Alisher; на него разрешены настоящие SMS |
+| `ESKIZ_TEST_MODE` | `1` (по умолчанию) — тестовый аккаунт Eskiz: уходит «Bu Eskiz dan test», владелец в приложении видит настоящий текст; `0` — после договора с Eskiz |
+| `DEMO_DEBTOR_PHONE` | свой или командный номер: им становится телефон демо-должника Alisher в `seed.py`; на него разрешены настоящие SMS |
 | `SMS_ALLOWLIST` | ещё номера через запятую, на которые разрешены настоящие SMS |
-| `SMS_ALLOW_ANY` | `0` — при `SMS_PROVIDER=eskiz` SMS на номер не из двух строк выше **не уходит** (`sms_failed`, без списания); `1` — только в боевом режиме с реальными должниками |
-| `EXTRAS_ADMIN_TOKEN` | пусто — локально; на публичном адресе — длинная случайная строка, тогда маршруты владельца и `/api/dev/*` требуют заголовок `X-Admin-Token` |
+| `SMS_ALLOW_ANY` | `0` — при `SMS_PROVIDER=eskiz` SMS на номер не из двух строк выше **не уходит**; `1` — только в боевом режиме |
 
 **Перед демо с настоящими SMS:** `SMS_PROVIDER=eskiz`, `ESKIZ_TEST_MODE=1`, свой номер в
-`DEMO_DEBTOR_PHONE`. Одно SMS стоит 145 сум (видно в статусе Eskiz) — 5 000 сум хватит примерно на 34 SMS.
+`DEMO_DEBTOR_PHONE`, затем `python seed.py --reset`. Одно SMS стоит 145 сум.
 
-**Время.** Все отметки времени и «сегодня» — по Ташкенту (UTC+5) независимо от часового пояса сервера
-(`extras/clock.py`).
+**Время.** Отметки времени и «сегодня» в extras — по Ташкенту (UTC+5), `extras/clock.py`.
 
-**Лимит Gemini.** На бесплатном уровне у модели около 20 запросов в день на проект
-(21.11.2026 после ~20 запросов пришёл `429 RESOURCE_EXHAUSTED`). Для демо — платный уровень
-или отдельный ключ, и не гонять `eval_ai` перед выступлением.
+## API (в основном бэке, порт 8000)
 
-## Запуск
-
-Все команды из `backend/`.
-
-**API напоминаний и оплаты** (порт 8001):
-
-```bash
-extras/.venv/bin/uvicorn extras.dev_app:app --port 8001
-```
-
-Одним процессом, без `--workers`: демо-долги живут в памяти. При каждом запуске демо-долги и ссылки
-(`tokens.json`) начинаются заново — после перезапуска Alisher снова «открыт» и напомнить можно сразу.
+Маршруты владельца требуют `X-Telegram-Init-Data` (в Mini App) и проверяют, что долг принадлежит
+магазину: чужой долг — `404 not_found`. Локально без initData работает демо-магазин `DEV_SHOP_ID`.
+Оплата открыта — её вызывает страница, которую должник открывает из SMS.
 
 | Метод | Путь | Что делает |
 |---|---|---|
@@ -84,8 +51,6 @@ extras/.venv/bin/uvicorn extras.dev_app:app --port 8001
 | GET | `/api/debts/{id}/remind/status` | последнее напоминание: `sent_at`, `delivery` (`DELIVERED`…), `delivered`, `paid` |
 | GET | `/api/pay/{token}` | данные для страницы оплаты (без телефона должника) |
 | POST | `/api/pay/{token}/confirm` | оплатить остаток; повтор возвращает `already_paid: true` и не списывает |
-| GET | `/api/dev/debts` | демо: долги и уведомления владельцу |
-| POST | `/api/dev/reset` | демо: вернуть данные к исходным |
 
 Preview создаёт ссылку-черновик и показывает настоящий `pay_url`; remind отправляет **ту же** ссылку.
 Оплатить черновик нельзя (`not_found`), пока SMS с ним не ушло.
@@ -105,63 +70,53 @@ Preview создаёт ссылку-черновик и показывает н�
 | `link_too_long` | 500 | `PUBLIC_BASE_URL` такой длинный, что ссылка не влезает в одно SMS; долг не блокируется |
 | `phone_not_allowed` | 403 | `SMS_PROVIDER=eskiz`, а номера нет в `DEMO_DEBTOR_PHONE`/`SMS_ALLOWLIST` (защита от SMS незнакомцам); preview показывает это заранее |
 | `link_not_public` | 500 | настоящее SMS (Eskiz без тестового режима), а `PUBLIC_BASE_URL` — localhost: должник не откроет ссылку |
-| `unauthorized` | 401 | задан `EXTRAS_ADMIN_TOKEN`, а заголовка `X-Admin-Token` нет или он неверный |
 
-> Страница и API оплаты открыты всем — их открывает должник по ссылке. Маршруты владельца и
-> `/api/dev/*` открыты, пока `EXTRAS_ADMIN_TOKEN` пуст: на публичном адресе его **обязательно** задать,
-> иначе любой сможет слать SMS за ваш счёт. При склейке с `api.py` маршруты владельца идут через
-> `Depends(current_shop)` и проверку, что долг принадлежит магазину. Номера в ответах всегда замаскированы.
-
-**Цепочка оплаты через curl** (сервер запущен, `SMS_PROVIDER=mock`):
+**Цепочка оплаты через curl** (бэкенд на :8000, `python seed.py --reset`, `SMS_PROVIDER=mock`):
 
 ```bash
-curl -s -X POST localhost:8001/api/dev/reset
+curl -s -X POST localhost:8000/api/debts/1/remind/preview
 ```
 
 ```bash
-curl -s -X POST localhost:8001/api/debts/1/remind/preview
+curl -s -X POST localhost:8000/api/debts/1/remind
+```
+
+SMS появилась в `backend/data/outbox.jsonl`. Токен — конец `pay_url` из ответа:
+
+```bash
+curl -s localhost:8000/api/pay/ТОКЕН
 ```
 
 ```bash
-curl -s -X POST localhost:8001/api/debts/1/remind
+curl -s -X POST localhost:8000/api/pay/ТОКЕН/confirm
 ```
 
-SMS появилась в `extras/outbox.jsonl`. Токен — конец `pay_url` из ответа:
-
-```bash
-curl -s localhost:8001/api/pay/ТОКЕН
-```
-
-```bash
-curl -s -X POST localhost:8001/api/pay/ТОКЕН/confirm
-```
-
-Долг закрыт, в консоли uvicorn: `[owner shop=1] Alisher to'ladi ✅ 450 000 so'm`. Повторный confirm
+Долг закрыт в БД (`debt_payments.source='link'`, в журнале «tasdiqlangan»), бо'ш пул вырос, владельцу в бот
+пришло `Alisher to'ladi ✅ 450 000 so'm`. Повторный confirm
 возвращает `"already_paid": true` и не списывает. Проверка отказов:
 
 ```bash
-curl -s -X POST localhost:8001/api/debts/2/remind
+curl -s -X POST localhost:8000/api/debts/2/remind
 ```
 
-→ `{"error":"no_consent"}`. Если задан `EXTRAS_ADMIN_TOKEN`, к запросам владельца и `/api/dev/*`
-добавьте `-H "X-Admin-Token: ..."`.
+→ `{"error":"no_consent"}` (в демо-сиде согласие на SMS есть только у Alisher).
 
 **SMS:**
 
 ```bash
-extras/.venv/bin/python -m extras.sms --check
+C:\venvs\daromad\Scripts\python.exe -m extras.sms --check
 ```
 
 Проверяет вход в Eskiz, SMS не отправляет.
 
 ```bash
-extras/.venv/bin/python -m extras.sms --to 998XXXXXXXXX --text "Salom"
+C:\venvs\daromad\Scripts\python.exe -m extras.sms --to 998XXXXXXXXX --text "Salom"
 ```
 
 Отправляет в текущем режиме `SMS_PROVIDER` (в Eskiz это списывает баланс).
 
 ```bash
-extras/.venv/bin/python -m extras.sms --status ID
+C:\venvs\daromad\Scripts\python.exe -m extras.sms --status ID
 ```
 
 Доставлено ли SMS (id — из ответа отправки), без списания.
@@ -169,13 +124,13 @@ extras/.venv/bin/python -m extras.sms --status ID
 **Фото:**
 
 ```bash
-extras/.venv/bin/python -m extras.vision extras/samples/synthetic/payme_alisher.png --today 2026-11-21
+C:\venvs\daromad\Scripts\python.exe -m extras.vision extras/samples/synthetic/payme_alisher.png --today 2026-11-21
 ```
 
 **Проверка точности ИИ:**
 
 ```bash
-extras/.venv/bin/python -m extras.eval_ai
+C:\venvs\daromad\Scripts\python.exe -m extras.eval_ai
 ```
 
 Фильтры: `--only text|audio|photo`, `--ids s01_spec,p03_payme`. Печатает по каждому примеру
@@ -203,27 +158,18 @@ extras/.venv/bin/python -m extras.eval_ai
 ## Тесты
 
 ```bash
-extras/.venv/bin/python -m pytest -q
+C:envs\daromad\Scripts\python.exe -m pytest -q
 ```
 
-Запускаются тесты основного бэка и `extras/tests/`. Сеть не нужна: Gemini и Eskiz подменены
-фейками, файлы пишутся во временные папки. `extras/tests/conftest.py` перекрывает настоящий `.env`
+Из `backend/`: тесты основного бэка и `extras/tests/`. Сеть не нужна: Gemini и Eskiz подменены фейками.
+`extras/tests/conftest.py` даёт каждому тесту свою SQLite-БД с демо-долгами и перекрывает настоящий `.env`
 (`SMS_PROVIDER=mock`, пустые ключи Eskiz), поэтому тесты никогда не отправят настоящее SMS.
 
 ## Безопасность и данные
 
-- Секреты — только в `extras/.env`. Тест `test_env_example_has_no_secrets` не даст закоммитить их в `.env.example`.
+- Секреты — только в `backend/.env`. Тест `test_env_example_has_no_secrets` не даст закоммитить их в `.env.example`.
+- Маршруты владельца — только свой долг (initData → магазин → `debt.shop_id`), иначе `404`.
 - Номер должника в ответах API маскируется (`+99890 *** ** 67`); `/api/pay/{token}` номер не отдаёт вовсе.
-- Токен оплаты — `secrets.token_urlsafe(32)`, 7 дней, одноразовый.
+- Токен оплаты — `secrets.token_urlsafe(32)`, 7 дней; оплата — одна транзакция `BEGIN IMMEDIATE`, повтор не списывает.
 - SMS только сервисное (сумма и ссылка), без рекламы, только при согласии должника и не чаще раза в 3 дня.
 - Бесплатный Gemini может использовать запросы для улучшения моделей: реальные ФИО и номера в тестовые примеры не класть.
-
-## Склейка с основным бэком
-
-1. `adapters.py`: тела функций → вызовы `db.py` (`shops`, `debts`, `debt_payments`, `audit_log`), `notify_owner` → сообщение в бот.
-2. В `main.py`: `app.include_router(reminders.router, dependencies=[Depends(current_shop)])` и
-   `app.include_router(payments.router)`; плюс проверка, что долг принадлежит магазину. `/api/dev/*` не переносить.
-3. `tokens.json` → таблица в SQLite (тот же формат: `token, debt_id, created_at, expires_at, sent_at, paid_at, paid_amount`).
-4. Фото в боте: `await vision.aparse_photo(...)` → `pipeline.save_drafts(shop_id, events, source="photo")`.
-5. Страница `/pay/{token}` — в Mini App (Ходжиакбар) поверх `GET /api/pay/{token}` и `POST /api/pay/{token}/confirm`;
-   модули extras отдают только JSON.
