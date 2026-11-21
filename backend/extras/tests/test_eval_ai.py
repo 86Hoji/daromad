@@ -229,3 +229,13 @@ def test_amount_accuracy_in_summary_and_report(capsys):
     eval_ai.print_report(rows, s, [case([ev("sale", 1_000)], id="a")])
     out = capsys.readouterr().out
     assert "Точность по суммам: 75%" in out and "ожидали:  sale 1 000" in out and "получили: —" in out
+
+
+def test_due_date_null_means_no_deadline():
+    exp = [ev("scheduled_payment", 3_240_000, due_date=None)]
+    ok = {"intent": "record", "events": [ev("scheduled_payment", 3_240_000, due_date=None)]}
+    bad = {"intent": "record", "events": [ev("scheduled_payment", 3_240_000, due_date="2026-11-28")]}
+    assert eval_ai.score_case(case(exp, validate=False), ok, TODAY)["ok"]
+    assert not eval_ai.score_case(case(exp, validate=False), bad, TODAY)["ok"]
+    # без validate=False основной pipeline такой платёж не примет — это и проверяется
+    assert "validate_event" in " ".join(eval_ai.score_case(case(exp), ok, TODAY)["errors"])

@@ -24,6 +24,7 @@ log = logging.getLogger("extras.sms")
 EXTRAS_DIR = Path(__file__).resolve().parent
 OUTBOX_PATH = EXTRAS_DIR / "outbox.jsonl"
 MAX_LEN = 160                      # одно SMS латиницей (GSM-7)
+MIN_SHOP_CHARS = 10                # название магазина короче не обрезаем — иначе не узнать, кто пишет
 PROVIDERS = ("mock", "eskiz")
 
 # Eskiz.uz, по публичной документации. TODO: сверить с актуальной документацией перед включением.
@@ -107,7 +108,8 @@ def build_reminder_text(shop_name: str, person: str, amount: int, pay_url: str) 
         elif "{shop}" in tpl:
             s = _fit(shop, room)
         text = tpl.format(name=n, shop=s, money=money, url=pay_url)
-        shop_ok = "{shop}" not in tpl or s == shop or len(s) >= 4   # подрезанное до 1-2 букв — не годится
+        # магазин важнее имени (своё имя должник знает): обрезка магазина до огрызка — берём шаблон без имени
+        shop_ok = "{shop}" not in tpl or s == shop or len(s) >= MIN_SHOP_CHARS
         if len(text) <= MAX_LEN and shop_ok:
             return text
     raise ValueError("pay_url is too long for one SMS")

@@ -30,10 +30,12 @@ MIN_INTERVAL = timedelta(days=3)
 
 
 def mask_phone(phone: str | None) -> str | None:
-    """'998901234567' или '+998 90 123-45-67' -> '+99890 *** ** 67'."""
+    """'998901234567', '+998 90 123-45-67', '90 123 45 67' -> '+99890 *** ** 67'."""
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
     if not digits:
         return None
+    if len(digits) == 9:                      # введён без кода страны, как в sms.normalize_phone
+        digits = "998" + digits
     return f"+{digits[:5]} *** ** {digits[-2:]}" if len(digits) >= 7 else "***"
 
 

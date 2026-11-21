@@ -34,6 +34,21 @@
     {"id": "p01_nakladnaya", "kind": "photo", "file": "samples/synthetic/nakladnaya_145.png", "intent": "record", "events": [{"type": "scheduled_payment", "amount": 3000000, "due_date": "2026-11-26"}]},
     {"id": "p02_faktura_paid", "kind": "photo", "file": "samples/synthetic/faktura_paid.png", "intent": "record", "events": [{"type": "expense", "amount": 800000, "category": "tovar"}]},
     {"id": "p03_payme", "kind": "photo", "file": "samples/synthetic/payme_alisher.png", "intent": "record", "events": [{"type": "debt_returned", "amount": 450000, "person": "Alisher"}]},
-    {"id": "p04_chek_gaz", "kind": "photo", "file": "samples/synthetic/chek_gaz.png", "intent": "record", "events": [{"type": "expense", "amount": 185000, "category": "kommunal"}]}
+    {"id": "p04_chek_gaz", "kind": "photo", "file": "samples/synthetic/chek_gaz.png", "intent": "record", "events": [{"type": "expense", "amount": 185000, "category": "kommunal"}]},
+    {"id": "n01_kassa", "kind": "text", "input": "Bugun kassada 3 million 450 ming bo'ldi", "intent": "record", "events": [{"type": "sale", "amount": 3450000}]},
+    {"id": "n02_ijara", "kind": "text", "input": "Ijaraga 4 million to'ladim", "intent": "record", "events": [{"type": "expense", "amount": 4000000, "category": "ijara"}]},
+    {"id": "n03_oylik", "kind": "text", "input": "Sotuvchiga oylik 2 million berdim", "intent": "record", "events": [{"type": "expense", "amount": 2000000, "category": "maosh"}]},
+    {"id": "n04_nasiya", "kind": "text", "input": "Jasur aka 220 ming nasiyaga oldi", "intent": "record", "events": [{"type": "debt_given", "amount": 220000, "person": "Jasur"}]},
+    {"id": "n05_qaytardi", "kind": "text", "input": "Malika 95 ming qarzini qaytardi", "intent": "record", "events": [{"type": "debt_returned", "amount": 95000, "person": "Malika"}]},
+    {"id": "n06_dushanba", "kind": "text", "input": "Dushanba kuni soliqqa 600 ming to'lashim kerak", "intent": "record", "events": [{"type": "scheduled_payment", "amount": 600000, "due_date": "2026-11-23"}]},
+    {"id": "n07_ru_vernul", "kind": "text", "input": "Вчера Рустам вернул долг сто двадцать тысяч", "intent": "record", "events": [{"type": "debt_returned", "amount": 120000, "person": ["Рустам", "Rustam"]}]},
+    {"id": "n08_uz_kirill", "kind": "text", "input": "Бензинга 150 минг кетди", "intent": "record", "events": [{"type": "expense", "amount": 150000, "category": "transport"}]},
+    {"id": "n09_question", "kind": "text", "input": "Kecha qancha foyda qildim?", "intent": "question", "events": []},
+    {"id": "n10_juma", "kind": "text", "input": "Juma kuni ikki yuz ellik ming kommunalga to'lashim kerak", "intent": "record", "events": [{"type": "scheduled_payment", "amount": 250000, "due_date": "2026-11-27"}]},
+    {"id": "n11_three", "kind": "text", "input": "Bugun 800 ming savdo, Otabek 50 ming qarz oldi, gazga 70 ming to'ladim", "intent": "record", "events": [{"type": "sale", "amount": 800000}, {"type": "debt_given", "amount": 50000, "person": "Otabek"}, {"type": "expense", "amount": 70000, "category": "kommunal"}]},
+    {"id": "n12_150k", "kind": "text", "input": "150k savdo", "intent": "record", "events": [{"type": "sale", "amount": 150000}]},
+    {"id": "p05_click_ru", "kind": "photo", "file": "samples/synthetic/click_sardor_ru.png", "intent": "record", "events": [{"type": "debt_returned", "amount": 1250000, "person": ["САРДОР Б.", "Sardor"]}]},
+    {"id": "p06_yuk_xati_no_due", "kind": "photo", "file": "samples/synthetic/yuk_xati_baraka.png", "intent": "record", "validate": false, "note": "срока нет -> due_date null; основной pipeline.validate_event такой scheduled_payment не примет — бот спросит дату", "events": [{"type": "scheduled_payment", "amount": 3240000, "due_date": null, "person": "Baraka Food"}]},
+    {"id": "p07_taksi_kirill", "kind": "photo", "file": "samples/synthetic/chek_taksi_kirill.png", "intent": "record", "events": [{"type": "expense", "amount": 38000, "category": "transport"}]}
   ]
 }

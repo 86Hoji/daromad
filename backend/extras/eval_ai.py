@@ -162,15 +162,16 @@ def score_case(case: dict, result: dict, today: date) -> dict:
         checks = {"type": ev.get("type") == exp["type"], "amount": ev.get("amount") == exp["amount"]}
         if "person" in exp:
             checks["person"] = person_ok(exp["person"], ev.get("person"))
-        if "due_date" in exp:
-            checks["due_date"] = str(ev.get("due_date") or "")[:10] == exp["due_date"]
+        if "due_date" in exp:                     # null в эталоне = «срока нет», ИИ должен вернуть null
+            got_due = str(ev["due_date"])[:10] if ev.get("due_date") else None
+            checks["due_date"] = got_due == exp["due_date"]
         if "category" in exp:
             checks["category"] = (ev.get("category") or "").lower() == exp["category"]
         for f, ok in checks.items():
             fields[f][0] += int(ok)
             if not ok:
                 errors.append(f"{exp['type']}.{f}: got {ev.get(f)!r}, want {exp.get(f)!r}")
-        _, verr = pipeline.validate_event(ev, today)
+        _, verr = pipeline.validate_event(ev, today) if case.get("validate", True) else (None, None)
         if verr:
             errors.append(f"{exp['type']}: rejected by validate_event: {verr}")
     used = [ev for _, ev in pairs if ev is not None]

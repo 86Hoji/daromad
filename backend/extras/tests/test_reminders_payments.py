@@ -248,11 +248,9 @@ def test_api_full_flow(client):
     assert r.status_code == 200
     tok = token_from(r.json()["pay_url"])
     assert client.get(f"/api/pay/{tok}").json()["amount"] == 450_000
-    page = client.get(f"/pay/{tok}")
-    assert page.status_code == 200 and "450 000 so'm" in page.text and "To'lash" in page.text
     c1, c2 = client.post(f"/api/pay/{tok}/confirm"), client.post(f"/api/pay/{tok}/confirm")
     assert c1.json()["already_paid"] is False and c2.json()["already_paid"] is True
-    assert "To'langan" in client.get(f"/pay/{tok}").text
+    assert client.get(f"/api/pay/{tok}").json()["status"] == "paid"
     assert client.get("/api/dev/debts").json()["debts"][0]["status"] == "closed"
 
 
@@ -269,11 +267,19 @@ def test_api_too_soon(client):
     assert r.status_code == 429 and r.json()["error"] == "too_soon"
 
 
-def test_api_unknown_token_page_does_not_echo_token(client):
+def test_api_unknown_token(client):
     assert client.get("/api/pay/zzz").json()["error"] == "not_found"
     assert client.post("/api/pay/zzz/confirm").status_code == 404
-    page = client.get("/pay/evil'token")
-    assert page.status_code == 404 and "evil" not in page.text
+
+
+def test_no_html_pages_only_json(client):
+    """ТЗ: «только JSON, без страниц» — страницу оплаты делает Mini App."""
+    tok = token_from(client.post(f"/api/debts/{ALISHER}/remind").json()["pay_url"])
+    assert client.get(f"/pay/{tok}").status_code == 404
+    from fastapi.routing import APIRoute
+    for r in dev_app.app.routes:
+        if isinstance(r, APIRoute):
+            assert "text/html" not in str(getattr(r, "response_class", "")), r.path
 
 
 def test_api_reset(client):
@@ -377,7 +383,7 @@ def test_admin_token_protects_owner_and_dev_routes(client, monkeypatch):
     r = client.post(f"/api/debts/{ALISHER}/remind", headers={"X-Admin-Token": "s3cret-admin"})
     assert r.status_code == 200
     tok = token_from(r.json()["pay_url"])
-    assert client.get(f"/pay/{tok}").status_code == 200                 # должнику ключ не нужен
+    assert client.get(f"/api/pay/{tok}").status_code == 200             # должнику ключ не нужен
     assert client.post(f"/api/pay/{tok}/confirm").status_code == 200
 
 
@@ -392,13 +398,6 @@ def test_cors_allows_mini_app(client):
         "Origin": "https://web.telegram.org", "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "x-admin-token"})
     assert r.status_code == 200 and r.headers.get("access-control-allow-origin") in ("*", "https://web.telegram.org")
-
-
-def test_pay_page_shows_human_date(client):
-    tok = token_from(client.post(f"/api/debts/{ALISHER}/remind").json()["pay_url"])
-    exp = payments.load_tokens()[tok]["expires_at"]
-    human = datetime.strptime(exp, payments.TIME_FMT).strftime("%d.%m.%Y %H:%M")
-    assert human in client.get(f"/pay/{tok}").text
 
 
 def test_api_link_too_long(client, monkeypatch):

@@ -199,7 +199,8 @@ def confirm_payment(token: str, now: datetime | None = None) -> dict:
     adapters.add_audit(debt["shop_id"], "system", "debt_paid_by_link",
                        {"debt_id": debt["id"], "amount": amount})
     adapters.notify_owner(debt["shop_id"],
-                          f"{debt['person_name']} to'ladi ✅ {amount:,} so'm".replace(",", " "))
+                          f"{(debt.get('person_name') or '').strip() or 'Mijoz'} to'ladi ✅ {amount:,} so'm"
+                          .replace(",", " "))
     return dict(_view(rec, debt), already_paid=False)
 
 
