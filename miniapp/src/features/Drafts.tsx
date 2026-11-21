@@ -40,7 +40,8 @@ function sub(d: Draft): string | null {
   return null;
 }
 
-export function DraftCards({ drafts }: { drafts: Draft[] }) {
+/** fx — витринный вариант (лендинг): карточки влетают по одной с пружиной. */
+export function DraftCards({ drafts, fx = false }: { drafts: Draft[]; fx?: boolean }) {
   return (
     <ul className="space-y-2">
       <AnimatePresence initial>
@@ -51,10 +52,10 @@ export function DraftCards({ drafts }: { drafts: Draft[] }) {
           return (
             <motion.li
               key={d.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07, duration: 0.25 }}
-              className="flex items-center gap-3.5 rounded-el bg-surface-2 px-4 py-3.5"
+              initial={fx ? { opacity: 0, y: 46, scale: 0.88, rotate: i % 2 ? -3 : 3 } : { opacity: 0, y: 10 }}
+              animate={fx ? { opacity: 1, y: 0, scale: 1, rotate: 0 } : { opacity: 1, y: 0 }}
+              transition={fx ? { type: "spring", stiffness: 240, damping: 19, delay: 0.12 + i * 0.2 } : { delay: i * 0.07, duration: 0.25 }}
+              className={`flex items-center gap-3.5 rounded-el px-4 py-3.5 ${fx ? "bg-surface/85 shadow-[var(--elev-1)]" : "bg-surface-2"}`}
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink-2">
                 <Icon size={18} strokeWidth={1.75} aria-hidden />

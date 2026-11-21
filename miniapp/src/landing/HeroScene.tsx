@@ -173,7 +173,7 @@ export function HeroScene() {
           {s >= 3 && (
             <motion.g key="dip" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduce ? 0 : 0.5 }}>
               {!reduce && s < 5 && (
-                <motion.circle cx={DIP_X} cy={YS[DIP]} r={7} fill="var(--neg)" animate={{ r: [7, 20], opacity: [0.35, 0] }} transition={{ duration: 1.3, repeat: Infinity, ease: "easeOut" }} />
+                <motion.circle cx={DIP_X} cy={YS[DIP]} r={7} fill="var(--neg)" style={{ transformBox: "fill-box", transformOrigin: "center" }} animate={{ scale: [1, 2.9], opacity: [0.35, 0] }} transition={{ duration: 1.3, repeat: Infinity, ease: "easeOut" }} />
               )}
               <circle cx={DIP_X} cy={YS[DIP]} r={6} fill="var(--surface)" stroke="var(--neg)" strokeWidth={3} />
               <text x={x(DIP - 1) - 2} y={YS[DIP] + 6} textAnchor="end" fontFamily="var(--font-display)" fontWeight={600} fontSize={16} fill="var(--neg-text)">
@@ -187,7 +187,7 @@ export function HeroScene() {
         {s >= 5 && (
           <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduce ? 0 : 1.1 }}>
             {!reduce && s >= 6 && (
-              <motion.circle cx={END_X} cy={YS[YS.length - 1]} fill="var(--pos)" animate={{ r: [6, 18], opacity: [0.35, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }} />
+              <motion.circle cx={END_X} cy={YS[YS.length - 1]} r={6} fill="var(--pos)" style={{ transformBox: "fill-box", transformOrigin: "center" }} animate={{ scale: [1, 3], opacity: [0.35, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }} />
             )}
             <circle cx={END_X} cy={YS[YS.length - 1]} r={6} fill="var(--pos)" />
           </motion.g>

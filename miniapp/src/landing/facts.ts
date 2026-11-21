@@ -1,25 +1,27 @@
-// Цифры для блока «Muammo». Источники проверяет команда перед показом — правьте здесь, вёрстка подхватит.
-export interface Fact {
-  value: string;
+// Тексты блока «Muammo». Цифру проверяет команда перед показом — правьте здесь, вёрстка подхватит.
+export interface Thesis {
+  title: string;
   text: string;
-  /** подпись под цифрой; null — без источника (качественное утверждение) */
-  source: string | null;
 }
 
-export const FACTS: Fact[] = [
+export const THESES: Thesis[] = [
   {
-    value: "50%+",
-    text: "YaIMning yarmidan ko'pini kichik biznes va xususiy tadbirkorlik beradi",
-    source: "O'zstat — tekshirilsin",
+    title: "Hisob daftar va xotirada",
+    text: "Savdo, xarajat va qarzlar tarqoq yoziladi yoki umuman yozilmaydi. «Bugun qancha bo'sh pul bor?» degan savolga aniq javob yo'q.",
   },
   {
-    value: "~¾",
-    text: "band aholining taxminan to'rtdan uch qismi kichik biznesda ishlaydi",
-    source: "O'zstat — tekshirilsin",
+    title: "Kamomad to'lov kuni bilinadi",
+    text: "Payshanba kuni tovar uchun to'lov esda turadi, lekin o'sha kuni pul yetmasligi — yo'q. Bilinganda kech bo'ladi.",
   },
   {
-    value: "Daftar",
-    text: "mikro biznesda hisob ko'pincha daftar va xotirada — pul yetmasligi to'lov kuni bilinadi",
-    source: null,
+    title: "Bank uchun ko'rinmas",
+    text: "Hisobot ham, pul oqimi tarixi ham yo'q — kredit qimmat yoki umuman berilmaydi.",
   },
 ];
+
+/** Единственная цифра на лендинге. */
+export const CREDIT_FACT = {
+  value: 10,
+  text: "kichik korxonalarning taxminan o'ndan birida bank krediti bor",
+  source: "Jahon banki — tekshirilsin",
+};

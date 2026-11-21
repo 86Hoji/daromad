@@ -1,6 +1,7 @@
-// Песочница лендинга: POST /api/text -> карточки -> сразу reject (в базу ничего не попадает).
-// Если сервер недоступен, примеры показываются из demo.ts.
-import { MessageSquareText, Sparkles } from "lucide-react";
+// Песочница лендинга (стеклянная консоль): POST /api/text -> карточки влетают по одной -> сразу reject
+// (в базу ничего не попадает). До ввода показан разобранный пример. Без сервера — примеры из demo.ts.
+import { Sparkles } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 import { DraftCards } from "../features/Drafts";
 import { api, ApiError, type ProcessResult } from "../lib/api";
@@ -8,46 +9,67 @@ import { Button } from "../ui/Button";
 import { EXAMPLES } from "./demo";
 
 type State =
-  | { kind: "idle" }
-  | { kind: "busy" }
-  | { kind: "done"; result: ProcessResult; offline: boolean }
+  | { kind: "busy"; text: string }
+  | { kind: "done"; result: ProcessResult; note: "sample" | "offline" | "live" }
   | { kind: "error"; text: string };
 
+const asResult = (ex: (typeof EXAMPLES)[number]): ProcessResult => ({ intent: "record", transcript: ex.text, batch_id: null, drafts: ex.drafts, errors: [], answer: null });
+
+const NOTE = {
+  sample: "Namuna. O'z gapingizni yozib ko'ring.",
+  offline: "Namuna serversiz ko'rsatildi.",
+  live: "Bu sinov — yozuvlar darhol bekor qilindi va saqlanmadi.",
+};
+
 export function Sandbox() {
+  const reduce = useReducedMotion();
   const [text, setText] = useState("");
-  const [state, setState] = useState<State>({ kind: "idle" });
+  const [state, setState] = useState<State>({ kind: "done", result: asResult(EXAMPLES[0]), note: "sample" });
+  const [runId, setRunId] = useState(0);
 
   const run = async (value: string) => {
     const t = value.trim();
     if (!t) return;
     setText(t);
-    setState({ kind: "busy" });
+    setState({ kind: "busy", text: t });
     try {
       const r = await api.text(t);
-      setState({ kind: "done", result: r, offline: false });
+      setRunId((n) => n + 1);
+      setState({ kind: "done", result: r, note: "live" });
       const ids = r.drafts.map((d) => d.id);
       if (ids.length) api.reject(ids).catch(() => undefined);
     } catch (e) {
       const ex = EXAMPLES.find((x) => x.text === t);
       if (ex) {
-        setState({ kind: "done", offline: true, result: { intent: "record", transcript: t, batch_id: null, drafts: ex.drafts, errors: [], answer: null } });
+        setRunId((n) => n + 1);
+        setState({ kind: "done", result: asResult(ex), note: "offline" });
       } else {
         setState({
           kind: "error",
           text:
             e instanceof ApiError && e.status !== 0
               ? `Tushuna olmadim: ${e.message}`
-              : "Server hozir javob bermayapti. Pastdagi namunalardan birini tanlang — ular serversiz ham ishlaydi.",
+              : "Server hozir javob bermayapti. Namunalardan birini tanlang — ular serversiz ham ishlaydi.",
         });
       }
     }
   };
 
+  const busy = state.kind === "busy";
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
-      <div>
+    <div className="glass lift-3 grid grid-cols-1 gap-3 rounded-[34px] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div className="flex flex-col p-3 sm:p-5">
+        <div className="flex items-center gap-2 text-[13.5px] text-ink-3">
+          <span className="relative flex h-2 w-2">
+            {!reduce && <span className="absolute inset-0 animate-ping rounded-full bg-pos opacity-60" />}
+            <span className="relative h-2 w-2 rounded-full bg-pos" />
+          </span>
+          Sinov konsoli · hech narsa saqlanmaydi
+        </div>
+
         <form
-          className="flex flex-col gap-2 rounded-panel bg-surface p-2 sm:flex-row sm:items-center"
+          className="mt-5 rounded-[22px] bg-surface/75 p-2 shadow-[var(--elev-1)]"
           onSubmit={(e) => {
             e.preventDefault();
             run(text);
@@ -56,29 +78,38 @@ export function Sandbox() {
           <label htmlFor="sandbox-input" className="sr-only">
             Nima bo'ldi?
           </label>
-          <input
+          <textarea
             id="sandbox-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Masalan: bugun 1 million 200 ming sotdim"
-            className="h-12 min-w-0 flex-1 rounded-el bg-transparent px-4 text-[16px] outline-none placeholder:text-ink-3"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                run(text);
+              }
+            }}
+            rows={3}
+            placeholder="Masalan: bugun 1 million 200 ming sotdim, ijaraga 500 ming to'ladim"
+            className="block w-full resize-none bg-transparent px-3 pt-2 text-[17px] leading-snug outline-none placeholder:text-ink-3"
             autoComplete="off"
             enterKeyHint="send"
           />
-          <Button type="submit" size="md" loading={state.kind === "busy"} disabled={!text.trim()} icon={<Sparkles size={17} strokeWidth={1.75} />}>
-            Tushunib ko'r
-          </Button>
+          <div className="mt-1 flex justify-end">
+            <Button type="submit" size="md" magnetic loading={busy} disabled={!text.trim()} icon={<Sparkles size={17} strokeWidth={1.75} />}>
+              Tushunib ko'r
+            </Button>
+          </div>
         </form>
 
-        <p className="mt-6 mb-3 text-[14px] text-ink-3">Yoki namunani bosing:</p>
+        <p className="mt-6 mb-3 text-[13.5px] text-ink-3">Yoki namunani bosing:</p>
         <ul className="flex flex-wrap gap-2">
           {EXAMPLES.map((ex) => (
             <li key={ex.text}>
               <button
                 type="button"
                 onClick={() => run(ex.text)}
-                disabled={state.kind === "busy"}
-                className="rounded-full bg-surface px-4 py-2.5 text-left text-[14.5px] text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-50"
+                disabled={busy}
+                className="btn-fx rounded-full bg-surface/60 px-4 py-2.5 text-left text-[14.5px] text-ink-2 hover:bg-surface hover:text-ink disabled:opacity-50"
               >
                 «{ex.text}»
               </button>
@@ -87,45 +118,57 @@ export function Sandbox() {
         </ul>
       </div>
 
-      <div className="min-h-[260px] rounded-panel bg-surface p-5 sm:p-6" aria-live="polite">
-        {state.kind === "idle" && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 py-8 text-center text-ink-3">
-            <MessageSquareText size={28} strokeWidth={1.5} aria-hidden />
-            <p className="max-w-[300px] text-[15px]">Daromad gapni qanday yozuvlarga ajratishi shu yerda chiqadi</p>
-          </div>
-        )}
+      <div className="min-h-[340px] rounded-[26px] bg-surface/55 p-5 sm:p-7" aria-live="polite">
         {state.kind === "busy" && (
-          <div className="space-y-2" aria-label="Tahlil qilinmoqda">
-            <div className="skeleton h-[68px] rounded-el" />
-            <div className="skeleton h-[68px] rounded-el opacity-70" />
+          <div aria-label="Tahlil qilinmoqda">
+            <div className="text-[13px] text-ink-3">Eshitganim</div>
+            <p className="mt-1 text-[17px] leading-snug">«{state.text}»</p>
+            <p className="text-shimmer display mt-8 text-[22px] font-semibold">Tushunyapman…</p>
+            <div className="mt-4 space-y-2">
+              <div className="skeleton h-[72px] rounded-el" />
+              <div className="skeleton h-[72px] rounded-el opacity-60" />
+            </div>
           </div>
         )}
         {state.kind === "error" && <p className="py-6 text-[15px] text-neg-text">{state.text}</p>}
-        {state.kind === "done" && <SandboxResult result={state.result} offline={state.offline} />}
+        {state.kind === "done" && <SandboxResult key={runId} result={state.result} note={state.note} />}
       </div>
     </div>
   );
 }
 
-function SandboxResult({ result, offline }: { result: ProcessResult; offline: boolean }) {
+function SandboxResult({ result, note }: { result: ProcessResult; note: keyof typeof NOTE }) {
+  const reduce = useReducedMotion();
+  const head = (
+    <motion.div initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+      <div className="text-[13px] text-ink-3">Eshitganim</div>
+      <p className="mt-1 text-[17px] leading-snug">«{result.transcript}»</p>
+    </motion.div>
+  );
   if (result.intent === "question")
     return (
       <div>
-        <h3 className="mb-2 text-[15px] font-semibold">Javob</h3>
+        {head}
+        <h3 className="mt-6 mb-2 text-[15px] font-semibold">Javob</h3>
         <p className="text-[15.5px] leading-relaxed whitespace-pre-line text-ink-2">{result.answer}</p>
       </div>
     );
   if (!result.drafts.length)
-    return <p className="py-6 text-[15px] text-ink-2">{result.errors[0] ?? "Bu gapda summa yoki voqea topilmadi. Boshqacha yozib ko'ring."}</p>;
+    return (
+      <div>
+        {head}
+        <p className="mt-6 text-[15px] text-ink-2">{result.errors[0] ?? "Bu gapda summa yoki voqea topilmadi. Boshqacha yozib ko'ring."}</p>
+      </div>
+    );
   return (
     <div>
-      <h3 className="mb-3 text-[15px] font-semibold">
-        Yozib oldim · {result.drafts.length} ta yozuv
-      </h3>
-      <DraftCards drafts={result.drafts} />
-      <p className="mt-4 text-[13.5px] text-ink-3">
-        {offline ? "Namuna serversiz ko'rsatildi." : "Bu sinov — yozuvlar darhol bekor qilindi va saqlanmadi."} Ilovada shu yerda «To'g'ri» tugmasi bo'ladi.
-      </p>
+      {head}
+      <div className="mt-6 mb-3 flex items-baseline justify-between">
+        <h3 className="display text-[20px] font-semibold tracking-[-0.02em]">Yozib oldim</h3>
+        <span className="text-[13.5px] text-ink-3">{result.drafts.length} ta yozuv</span>
+      </div>
+      <DraftCards drafts={result.drafts} fx />
+      <p className="mt-5 text-[13.5px] text-ink-3">{NOTE[note]} Ilovada shu yerda «To'g'ri» tugmasi bo'ladi.</p>
     </div>
   );
 }
