@@ -17,3 +17,14 @@
 - [ ] Vercel: создать проект (Root Directory `miniapp`), задать `VITE_API_URL` (печатает `scripts\start_demo.ps1`) и `VITE_BOT_URL`.
 - [ ] `backend/.env`: `WEBAPP_URL=https://<проект>.vercel.app/tg`, `DEMO_RESET=1` на время показа.
 - [ ] @BotFather: Menu Button -> `https://<проект>.vercel.app/tg`.
+
+## Квоты Gemini на день защиты — ВАЖНО
+- [ ] Ключ на бесплатном тарифе: `gemini-3.8-flash-tts` даёт **10 запросов в день**, у `gemini-3.8-flash` тоже дневной лимит.
+      За день отладки 22.11 обе квоты закончились (429). Перед защитой: включить billing в AI Studio или взять отдельный
+      ключ только для показа (`GEMINI_API_KEY` в `backend/.env`), и не гонять демо много раз в день защиты.
+- [ ] За 15 минут до выхода — один прогон-репетиция (docs/DEMO.md). Голосовой ответ ляжет в `backend/data/tts_cache`,
+      и на сцене квота TTS уже не понадобится.
+- [ ] Желательно перезаписать `docs/demo.webm` (`scripts/record_demo.mjs`), когда вернётся квота: в текущем видео
+      транскрипт шага 6 — «O'zbek tilida: Kim menga qarz?» (старый WAV микрофона, уже исправлен).
+- Стилевая подсказка TTS «O'zbek tilida, xotirjam va aniq o'qing:» из ТЗ отключена (`tts.USE_STYLE=False`):
+  модель зачитывала её вслух, это проверено через STT.

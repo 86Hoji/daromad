@@ -20,7 +20,8 @@ def fake_pcm(seconds: float = 1.0, extra: int = 37) -> bytes:
 
 
 @pytest.fixture(autouse=True)
-def clean_cache():
+def clean_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts, "DISK_CACHE", tmp_path / "tts_cache")
     tts._cache.clear()
     yield
     tts._cache.clear()
@@ -136,3 +137,23 @@ def test_api_tts(tmp_db, monkeypatch):
     r = client.post("/api/tts", json={"text": "Salom"})
     assert r.status_code == 200 and r.headers["content-type"] == "audio/wav" and r.content[:4] == b"RIFF"
     assert client.post("/api/tts", json={"text": ""}).status_code == 422
+
+
+def test_disk_cache_survives_restart(monkeypatch):
+    calls = []
+
+    async def fake(text):
+        calls.append(text)
+        return fake_pcm(0.2), "audio/L16;rate=24000"
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "x")
+    monkeypatch.setattr(tts, "_generate", fake)
+    a = asyncio.run(tts.synthesize("Kim menga qarz?", fmt="wav"))
+    tts._cache.clear()  # «перезапуск» процесса
+
+    async def quota(text):
+        raise RuntimeError("429")
+
+    monkeypatch.setattr(tts, "_generate", quota)
+    assert asyncio.run(tts.synthesize("Kim menga qarz?", fmt="wav")) == a
+    assert len(calls) == 1

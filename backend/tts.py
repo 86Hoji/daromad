@@ -17,12 +17,18 @@ import config
 
 log = logging.getLogger("flowcast.tts")
 
+# Подсказка стиля по ТЗ. Проверено STT: gemini-3.8-flash-tts зачитывает её вслух («O'zbek tilida, xotirjam…»),
+# поэтому в запрос она не идёт (USE_STYLE=False). Голос Fola и без неё звучит спокойно и по-узбекски.
 STYLE = "O'zbek tilida, xotirjam va aniq o'qing: "
+USE_STYLE = False
 TIMEOUT = 10.0
 MAX_CHARS = 1200
 _CACHE_SIZE = 64
 # хэш текста -> (pcm, mime) ; конвертация в OGG/WAV дешёвая, кэшируем исходный звук
 _cache: "OrderedDict[str, tuple[bytes, str]]" = OrderedDict()
+# дисковый кэш рядом с БД (backend/data/ в .gitignore): бесплатный тир TTS — 10 запросов в день, поэтому
+# один прогон-репетиция перед защитой кладёт ответы на диск и на сцене квота уже не нужна
+DISK_CACHE = config.DB_PATH.parent / "tts_cache"
 
 
 # --- форматы (как в примере AI Studio) -------------------------------------------
@@ -143,6 +149,21 @@ def _key(text: str) -> str:
     return hashlib.sha256(f"{config.GEMINI_TTS_MODEL}|{config.GEMINI_TTS_VOICE}|{text}".encode()).hexdigest()
 
 
+def _disk_get(k: str) -> tuple[bytes, str] | None:
+    try:
+        return wav_to_pcm((DISK_CACHE / f"{k}.wav").read_bytes())
+    except Exception:
+        return None
+
+
+def _disk_put(k: str, pcm: bytes, mime: str) -> None:
+    try:
+        DISK_CACHE.mkdir(parents=True, exist_ok=True)
+        (DISK_CACHE / f"{k}.wav").write_bytes(convert_to_wav(pcm, mime))
+    except Exception as exc:
+        log.warning("TTS keshga yozilmadi: %s", exc)
+
+
 _client = None
 
 
@@ -167,7 +188,7 @@ async def _generate(text: str) -> tuple[bytes, str]:
             voice_config=types.VoiceConfig(
                 prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=config.GEMINI_TTS_VOICE))),
     )
-    contents = [types.Content(role="user", parts=[types.Part.from_text(text=STYLE + text)])]
+    contents = [types.Content(role="user", parts=[types.Part.from_text(text=(STYLE + text) if USE_STYLE else text)])]
     pcm = bytearray()
     mime = "audio/L16;rate=24000"
     stream = await client.aio.models.generate_content_stream(model=config.GEMINI_TTS_MODEL, contents=contents, config=cfg)
@@ -189,17 +210,22 @@ async def _generate(text: str) -> tuple[bytes, str]:
 async def synthesize_pcm(text: str) -> tuple[bytes, str] | None:
     """(pcm, mime) или None. Таймаут 10 с, кэш по хэшу текста."""
     text = (text or "").strip()[:MAX_CHARS]
-    if not text or not config.GEMINI_API_KEY:
+    if not text:
         return None
     k = _key(text)
+    if not config.GEMINI_API_KEY and k not in _cache and not (DISK_CACHE / f"{k}.wav").exists():
+        return None
     if k in _cache:
         _cache.move_to_end(k)
         return _cache[k]
-    try:
-        res = await asyncio.wait_for(_generate(text), TIMEOUT)
-    except Exception as exc:  # сеть, квота, таймаут, нет модели — молча без голоса
-        log.warning("TTS ishlamadi: %s", exc)
-        return None
+    res = _disk_get(k)
+    if res is None:
+        try:
+            res = await asyncio.wait_for(_generate(text), TIMEOUT)
+        except Exception as exc:  # сеть, квота, таймаут, нет модели — молча без голоса
+            log.warning("TTS ishlamadi: %s", exc)
+            return None
+        _disk_put(k, *res)
     _cache[k] = res
     while len(_cache) > _CACHE_SIZE:
         _cache.popitem(last=False)
