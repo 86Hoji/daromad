@@ -9,12 +9,16 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { MoneyLine } from "../chart/MoneyLine";
 import { DraftCards } from "../features/Drafts";
 import { api, type Forecast } from "../lib/api";
+import { BRAND } from "../lib/brand";
+import { useLenis, useMagnet, useSpotlight } from "../lib/fx";
 import { Logo, ThemeToggle } from "../ui/bits";
+import { LiquidBg, setLiquidBoost } from "../ui/Liquid";
 import { EXAMPLES, demoForecast } from "./demo";
 import { FACTS } from "./facts";
 import { HeroScene, WAVE } from "./HeroScene";
@@ -29,87 +33,126 @@ const H2 =
 const LEAD =
   "mt-4 max-w-[640px] text-[17px] leading-relaxed text-ink-2 sm:text-[18px]";
 
+function CtaLink({ to, href, children, primary = false, icon }: { to?: string; href?: string; children: ReactNode; primary?: boolean; icon: ReactNode }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useMagnet(ref, true, 0.3, 12);
+  const cls = `btn-fx inline-flex h-14 items-center justify-center gap-2.5 rounded-full px-7 text-[16px] font-medium ${
+    primary ? "bg-brand text-brand-ink shadow-[var(--elev-2)] hover:bg-brand-hover" : "glass lift-1 text-ink"
+  }`;
+  return to ? (
+    <Link ref={ref} to={to} className={cls}>
+      {icon}
+      {children}
+    </Link>
+  ) : (
+    <a ref={ref} href={href} target="_blank" rel="noreferrer" className={cls}>
+      {icon}
+      {children}
+    </a>
+  );
+}
+
 function Ctas({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col gap-3 sm:flex-row ${className}`}>
-      <Link
-        to="/app"
-        className="inline-flex h-14 items-center justify-center gap-2.5 rounded-[14px] bg-brand px-7 text-[16px] font-medium text-white transition-colors hover:bg-brand-hover"
-      >
-        <Play size={18} strokeWidth={1.75} aria-hidden />
+      <CtaLink to="/app" primary icon={<Play size={18} strokeWidth={1.9} aria-hidden />}>
         Demo'ni ochish
-      </Link>
-      <a
-        href={BOT_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex h-14 items-center justify-center gap-2.5 rounded-[14px] bg-white/10 px-7 text-[16px] font-medium text-white transition-colors hover:bg-white/15"
-      >
-        <Send size={18} strokeWidth={1.75} aria-hidden />
+      </CtaLink>
+      <CtaLink href={BOT_URL} icon={<Send size={18} strokeWidth={1.75} aria-hidden />}>
         Telegram'da ochish
-      </a>
+      </CtaLink>
     </div>
   );
 }
 
 function Header() {
-  const link =
-    "rounded-el px-3 py-2 text-[15px] text-ink-2 transition-colors hover:text-ink";
+  const link = "rounded-full px-3.5 py-2 text-[15px] text-ink-2 transition-colors hover:bg-surface-2/60 hover:text-ink";
   return (
-    <header className={`${WRAP} flex h-20 items-center justify-between gap-4`}>
-      <Logo light />
-      <nav
-        className="hidden items-center gap-1 md:flex"
-        aria-label="Sahifa bo'limlari"
-      >
-        <a href="#qanday" className={link}>
-          Qanday ishlaydi
-        </a>
-        <a href="#sinov" className={link}>
-          Sinab ko'ring
-        </a>
-        <a href="#banklar" className={link}>
-          Banklar uchun
-        </a>
-      </nav>
-      <div className="flex items-center gap-2">
-        <ThemeToggle />
-        <Link
-          to="/app"
-          className="inline-flex h-10 items-center rounded-el bg-white/10 px-4 text-[15px] font-medium text-white hover:bg-white/15"
-        >
-          Demo
+    <header className="fixed inset-x-0 top-3 z-40 px-3 sm:top-4">
+      <div className="glass lift-2 mx-auto flex h-14 max-w-[1120px] items-center justify-between gap-3 rounded-full pr-2 pl-5">
+        <Link to="/" aria-label={`${BRAND} — bosh sahifa`} className="rounded-full">
+          <Logo size={26} />
         </Link>
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Sahifa bo'limlari">
+          <a href="#qanday" className={link}>
+            Qanday ishlaydi
+          </a>
+          <a href="#sinov" className={link}>
+            Sinab ko'ring
+          </a>
+          <a href="#banklar" className={link}>
+            Banklar uchun
+          </a>
+        </nav>
+        <div className="flex items-center gap-1.5">
+          <ThemeToggle />
+          <Link to="/app" className="btn-fx inline-flex h-10 items-center rounded-full bg-brand px-5 text-[15px] font-medium text-brand-ink hover:bg-brand-hover">
+            Demo
+          </Link>
+        </div>
       </div>
     </header>
   );
 }
 
-function Hero() {
+/** Плавающие стеклянные фишки вокруг сцены — глубина. */
+function Floater({ className, children, delay = 0, depth = 1 }: { className: string; children: ReactNode; delay?: number; depth?: number }) {
+  const reduce = useReducedMotion();
   return (
-    <section className="on-night overflow-hidden">
-      <Header />
-      <div className={`${WRAP} pt-8 pb-20 lg:pt-16 lg:pb-28`}>
-        <h1 className="max-w-[1120px] font-display text-[clamp(34px,5vw,68px)] leading-[1.06] font-bold tracking-[-0.035em]">
-          <span className="text-brand-text">Gapiring.</span> Daromad pulingizni
-          oldindan hisoblaydi.
-        </h1>
-        <div className="mt-10 grid items-start gap-12 lg:mt-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
-          <div className="lg:pt-4">
-            <p className="max-w-[500px] text-[18px] leading-relaxed text-ink-2 sm:text-[19px]">
-              Kichik va mikro biznes uchun ovozli moliyaviy yordamchi: savdo,
-              xarajat va qarzlar — ovoz bilan, bo'sh pul — oldindan
-            </p>
+    <motion.div
+      aria-hidden
+      className={`glass absolute z-0 hidden rounded-full px-4 py-2.5 text-[14px] lg:flex ${className}`}
+      initial={reduce ? false : { opacity: 0, y: 20 }}
+      animate={reduce ? { opacity: 1 } : { opacity: 1, y: [0, -10 * depth, 0] }}
+      transition={reduce ? {} : { opacity: { delay, duration: 0.8 }, y: { delay, duration: 6 + depth * 2, repeat: Infinity, ease: "easeInOut" } }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function Hero() {
+  const reduce = useReducedMotion();
+  const rise = (i: number) =>
+    reduce ? {} : { initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, transition: { type: "spring" as const, stiffness: 90, damping: 18, delay: 0.1 + i * 0.12 } };
+  return (
+    <section className="relative flex min-h-[100svh] items-center pt-28 pb-16 lg:pt-24" aria-labelledby="hero-h">
+      <div className={`${WRAP} grid grid-cols-1 items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] lg:gap-14`}>
+        <div className="relative z-10">
+          <motion.div {...rise(0)} className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13.5px] text-ink-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-pos" aria-hidden /> Kichik va mikro biznes uchun
+          </motion.div>
+          <motion.h1 {...rise(1)} id="hero-h" className="display mt-6 text-[clamp(40px,4.7vw,74px)] leading-[1] font-bold tracking-[-0.045em]">
+            Gapiring.
+            <span className="mt-1 block bg-gradient-to-br from-ink to-ink-3 bg-clip-text pb-1 text-transparent">Pulingizni oldindan biling.</span>
+          </motion.h1>
+          <motion.p {...rise(2)} className="mt-7 max-w-[480px] text-[18px] leading-relaxed text-ink-2 sm:text-[19px]">
+            Ovozli moliyaviy yordamchi: savdo, xarajat va qarzlar — ovoz bilan, bo'sh pul — oldindan.
+          </motion.p>
+          <motion.div {...rise(3)}>
             <Ctas className="mt-9" />
-            <p className="mt-5 max-w-[460px] text-[14px] text-ink-3">
-              Ro'yxatdan o'tmasdan · o'zbek tilida · ma'lumot
-              tasdiqlamaguningizcha saqlanmaydi
-            </p>
-          </div>
-          <div className="rounded-panel bg-surface p-5 sm:p-7">
+          </motion.div>
+          <motion.p {...rise(4)} className="mt-5 text-[14px] text-ink-3">
+            Ro'yxatdan o'tmasdan · o'zbek tilida · tasdiqlamaguningizcha hech narsa saqlanmaydi
+          </motion.p>
+        </div>
+
+        <motion.div
+          className="relative"
+          initial={reduce ? false : { opacity: 0, scale: 0.94, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 70, damping: 18, delay: 0.15 }}
+        >
+          <Floater className="-top-10 left-6" delay={1.2} depth={1.2}>
+            <span className="text-pos-text">+2 300 000</span>&nbsp;<span className="text-ink-3">sotuv · bugun</span>
+          </Floater>
+          <Floater className="-bottom-12 left-[-36px]" delay={1.8} depth={0.8}>
+            <span className="text-ink-3">Akmal · tovar ·</span>&nbsp;<span className="text-ink">3 mln, payshanba</span>
+          </Floater>
+          <div className="glass lift-3 relative z-10 rounded-[32px] p-6 sm:p-9">
             <HeroScene />
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
@@ -245,7 +288,7 @@ function HowItWorks() {
   return (
     <section
       id="qanday"
-      className="scroll-mt-6 bg-surface-2/60 py-20 lg:py-28"
+      className="scroll-mt-24 py-20 lg:py-28"
       aria-labelledby="qanday-h"
     >
       <div className={WRAP}>
@@ -329,7 +372,7 @@ const LEVELS = [
 function Trust() {
   return (
     <section
-      className="bg-surface-2/60 py-20 lg:py-28"
+      className="py-20 lg:py-28"
       aria-labelledby="ishonch"
     >
       <div className={`${WRAP} grid gap-12 lg:grid-cols-2 lg:gap-16`}>
@@ -391,7 +434,7 @@ function Banks() {
   return (
     <section
       id="banklar"
-      className="scroll-mt-6 bg-surface py-20 lg:py-28"
+      className="scroll-mt-24 py-20 lg:py-28"
       aria-labelledby="banklar-h"
     >
       <div
@@ -428,23 +471,30 @@ function Banks() {
 }
 
 function FinalCta() {
+  const ref = useRef<HTMLElement>(null);
+  const inView = useInView(ref, { amount: 0.35 });
+  useEffect(() => {
+    setLiquidBoost(inView ? 4 : 1);
+    return () => setLiquidBoost(1);
+  }, [inView]);
   return (
-    <section className="on-night">
-      <div className={`${WRAP} py-20 lg:py-28`}>
-        <h2 className="font-display max-w-[820px] text-[clamp(32px,4.4vw,56px)] leading-[1.08] font-bold tracking-[-0.03em] text-balance">
+    <section ref={ref} className="relative" aria-labelledby="final-h">
+      <div className={`${WRAP} py-28 lg:py-40`}>
+        <h2
+          id="final-h"
+          className="display max-w-[980px] bg-gradient-to-b from-ink via-ink to-ink-3/40 bg-clip-text pb-2 text-[clamp(44px,7vw,112px)] leading-[0.98] font-bold tracking-[-0.045em] text-transparent"
+        >
           Ertangi pulni bugun ko'ring.
         </h2>
-        <p className="mt-5 max-w-[560px] text-[18px] leading-relaxed text-ink-2">
-          Demo biznes tayyor: qarzlar, to'lovlar va payshanbadagi kamomad bilan.
-        </p>
-        <Ctas className="mt-9" />
+        <p className="mt-6 max-w-[560px] text-[18px] leading-relaxed text-ink-2">Demo biznes tayyor: qarzlar, to'lovlar va payshanbadagi kamomad bilan.</p>
+        <Ctas className="mt-10" />
       </div>
-      <footer className="border-t border-line">
-        <div
-          className={`${WRAP} flex flex-col gap-4 py-8 text-[14px] text-ink-3 sm:flex-row sm:items-center sm:justify-between`}
-        >
-          <Logo light size={24} />
-          <span>Inha FinTech Hackathon 2026 · jamoa: [Jamoa nomi]</span>
+      <footer className="relative">
+        <div className={`${WRAP} pb-8`}>
+          <div className="glass flex flex-col gap-4 rounded-[20px] px-6 py-5 text-[14px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+            <Logo size={24} />
+            <span>Inha FinTech Hackathon 2026 · jamoa: [Jamoa nomi]</span>
+          </div>
         </div>
       </footer>
     </section>
@@ -452,26 +502,29 @@ function FinalCta() {
 }
 
 export default function Landing() {
-  useEffect(() => {
-    document.title = "Daromad — ovozli moliyaviy yordamchi";
-  }, []);
+  useLenis();
+  useSpotlight();
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="relative min-h-dvh">
+      <LiquidBg speed={1} blur={90} />
       <a
         href="#muammo"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-el focus:bg-surface focus:px-4 focus:py-2"
       >
         Asosiy qismga o'tish
       </a>
-      <Hero />
-      <main>
-        <Problem />
-        <HowItWorks />
-        <SandboxSection />
-        <Trust />
-        <Banks />
-      </main>
-      <FinalCta />
+      <Header />
+      <div className="relative z-10">
+        <Hero />
+        <main>
+          <Problem />
+          <HowItWorks />
+          <SandboxSection />
+          <Trust />
+          <Banks />
+        </main>
+        <FinalCta />
+      </div>
     </div>
   );
 }
