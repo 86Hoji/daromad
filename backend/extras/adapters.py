@@ -116,7 +116,11 @@ def notify_owner(shop_id: int, text: str) -> None:
     """Потом: сообщение владельцу в бот. Сейчас: лог."""
     notifications.append({"shop_id": shop_id, "text": text, "created_at": _now()})
     log.info("notify_owner shop=%s: %s", shop_id, text)
-    print(f"[owner shop={shop_id}] {text}", flush=True)     # видно в консоли uvicorn на демо
+    line = f"[owner shop={shop_id}] {text}"
+    try:
+        print(line, flush=True)                              # видно в консоли uvicorn на демо
+    except UnicodeEncodeError:                               # консоль не UTF-8 (Windows, вывод в файл)
+        print(line.encode("ascii", "replace").decode("ascii"), flush=True)
 
 
 reset()

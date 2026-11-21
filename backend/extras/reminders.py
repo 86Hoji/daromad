@@ -17,6 +17,8 @@
     too_soon      — SMS по этому долгу уже уходило меньше 3 дней назад
     sms_failed    — провайдер не отправил SMS (можно сразу повторить)
     link_too_long — PUBLIC_BASE_URL слишком длинный: ссылка не влезает в одно SMS (ошибка настройки)
+    phone_not_allowed — SMS_PROVIDER=eskiz, а номера нет в DEMO_DEBTOR_PHONE/SMS_ALLOWLIST (защита от SMS
+                        незнакомцам; в бою — SMS_ALLOW_ANY=1)
     link_not_public — настоящее SMS (Eskiz без тестового режима), а PUBLIC_BASE_URL = localhost:
                       должник не откроет ссылку (ошибка настройки)
 """
@@ -68,6 +70,8 @@ def _check(debt: dict | None, now: datetime) -> str | None:
         return "no_phone"
     if not debt.get("sms_consent"):
         return "no_consent"
+    if sms.provider() == "eskiz" and not sms.number_allowed(sms.normalize_phone(debt["phone"])):
+        return "phone_not_allowed"
     last = _last_sent(debt["id"])
     if last is not None and now - last < MIN_INTERVAL:
         return "too_soon"

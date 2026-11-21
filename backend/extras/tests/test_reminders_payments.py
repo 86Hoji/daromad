@@ -532,3 +532,37 @@ def test_draft_link_is_not_payable_until_sent(client):
     assert adapters.get_debt(ALISHER)["remaining"] == 450_000
     client.post(f"/api/debts/{ALISHER}/remind")
     assert client.get(f"/api/pay/{tok}").json()["status"] == "open"
+
+
+# --- круг 3: консоль не UTF-8, номер вне списка ------------------------------------------
+
+def test_payment_survives_non_utf8_console(monkeypatch, capsys):
+    import builtins
+    real_print = builtins.print
+
+    def cp1251_print(*a, **kw):                             # как print в консоли Windows cp1251
+        " ".join(map(str, a)).encode("cp1251")
+        real_print(*a, **kw)
+    monkeypatch.setattr(builtins, "print", cp1251_print)
+    tok = _sent_token()
+    r = payments.confirm_payment(tok, now=T0)
+    assert r["already_paid"] is False and adapters.get_debt(ALISHER)["status"] == "closed"
+    assert "to'ladi ? 450 000" in capsys.readouterr().out
+
+
+def test_payment_ok_even_if_notify_breaks(monkeypatch):
+    tok = _sent_token()
+    monkeypatch.setattr(adapters, "notify_owner", lambda *a: 1 / 0)
+    assert payments.confirm_payment(tok, now=T0)["already_paid"] is False
+    assert payments.confirm_payment(tok, now=T0)["already_paid"] is True and len(adapters.payments) == 1
+
+
+def test_preview_says_phone_not_allowed_in_eskiz_mode(monkeypatch, client):
+    monkeypatch.setenv("SMS_PROVIDER", "eskiz")
+    p = client.post(f"/api/debts/{ALISHER}/remind/preview").json()
+    assert p["can_send"] is False and p["reason"] == "phone_not_allowed" and p["pay_url"] is None
+    r = client.post(f"/api/debts/{ALISHER}/remind")
+    assert r.status_code == 403 and r.json()["error"] == "phone_not_allowed" and payments.load_tokens() == {}
+    monkeypatch.setenv("DEMO_DEBTOR_PHONE", "998901234567")
+    monkeypatch.setenv("ESKIZ_TEST_MODE", "1")              # иначе (localhost) — link_not_public, и это верно
+    assert client.post(f"/api/debts/{ALISHER}/remind/preview").json()["can_send"] is True

@@ -16,6 +16,7 @@ sent_at = null — черновик из preview (SMS ещё не ушло).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 import threading
@@ -34,6 +35,7 @@ TOKEN_LENGTH = 43                   # len(secrets.token_urlsafe(32))
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 
 _lock = threading.RLock()
+log = logging.getLogger("extras.payments")
 
 
 class ExtrasError(Exception):
@@ -41,7 +43,7 @@ class ExtrasError(Exception):
 
     STATUS = {"not_found": 404, "token_expired": 410, "debt_closed": 409, "no_phone": 422,
               "no_consent": 403, "too_soon": 429, "sms_failed": 502, "link_too_long": 500, "unauthorized": 401,
-              "link_not_public": 500}
+              "link_not_public": 500, "phone_not_allowed": 403}
 
     def __init__(self, code: str, detail: str = ""):
         super().__init__(code)
@@ -216,11 +218,15 @@ def confirm_payment(token: str, now: datetime | None = None) -> dict:
         _save_tokens(tokens)
         rec = tokens[token]
 
-    adapters.add_audit(debt["shop_id"], "system", "debt_paid_by_link",
-                       {"debt_id": debt["id"], "amount": amount})
-    adapters.notify_owner(debt["shop_id"],
-                          f"{(debt.get('person_name') or '').strip() or 'Mijoz'} to'ladi ✅ {amount:,} so'm"
-                          .replace(",", " "))
+    # Оплата уже записана: сбой журнала или уведомления не должен превращать её в ошибку для должника.
+    try:
+        adapters.add_audit(debt["shop_id"], "system", "debt_paid_by_link",
+                           {"debt_id": debt["id"], "amount": amount})
+        adapters.notify_owner(debt["shop_id"],
+                              f"{(debt.get('person_name') or '').strip() or 'Mijoz'} to'ladi ✅ {amount:,} so'm"
+                              .replace(",", " "))
+    except Exception:
+        log.exception("payment %s recorded, but audit/notify failed", token[:6])
     return dict(_view(rec, debt), already_paid=False)
 
 

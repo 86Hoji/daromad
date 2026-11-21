@@ -103,6 +103,7 @@ Preview создаёт ссылку-черновик и показывает н�
 | `token_expired` | 410 | ссылке больше 7 дней и она не оплачена |
 | `sms_failed` | 502 | провайдер не отправил SMS; попытка не считается, можно повторить сразу |
 | `link_too_long` | 500 | `PUBLIC_BASE_URL` такой длинный, что ссылка не влезает в одно SMS; долг не блокируется |
+| `phone_not_allowed` | 403 | `SMS_PROVIDER=eskiz`, а номера нет в `DEMO_DEBTOR_PHONE`/`SMS_ALLOWLIST` (защита от SMS незнакомцам); preview показывает это заранее |
 | `link_not_public` | 500 | настоящее SMS (Eskiz без тестового режима), а `PUBLIC_BASE_URL` — localhost: должник не откроет ссылку |
 | `unauthorized` | 401 | задан `EXTRAS_ADMIN_TOKEN`, а заголовка `X-Admin-Token` нет или он неверный |
 

@@ -364,4 +364,7 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    for stream in (sys.stdout, sys.stderr):                 # консоль не UTF-8 (Windows): «?» вместо падения
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     sys.exit(main())
