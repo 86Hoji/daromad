@@ -54,7 +54,8 @@
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.on-night {
   --bg: #0b1430;
   --surface: #121d40;
   --surface-2: #18244d;
@@ -210,4 +211,10 @@ button:focus:not(:focus-visible) {
 .recharts-wrapper,
 .recharts-surface {
   outline: none;
+}
+
+/* тёмные секции лендинга (hero, финальный CTA) — токены тёмной темы в любой теме */
+.on-night {
+  background: var(--bg);
+  color: var(--ink);
 }
