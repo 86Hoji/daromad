@@ -1,23 +1,48 @@
-// Оболочка Mini App /tg: плотная, нативная для Telegram. Нижние табы + круглая кнопка микрофона.
-import { Home, Keyboard, PieChart, Users, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
-import { DraftSheet } from "../features/Drafts";
+// Оболочка Mini App /tg: нижняя панель Главная · Операции · [ + ] · Долги · Ещё.
+// [ + ] открывает лист действий (AddFlow): голос, скан чека / накладной, текст. Плавающих кнопок нет.
+import { Home, ListOrdered, Menu, Plus, Users } from "lucide-react";
+import type { CSSProperties } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ReminderProvider } from "../features/Reminder";
-import { LiveWave, MicButton } from "../features/Voice";
-import { useVoiceInput } from "../hooks/useVoiceInput";
 import { LiveProvider } from "../lib/live";
-import { haptic } from "../lib/telegram";
 import { t } from "../lib/i18n";
+import { haptic } from "../lib/telegram";
+import { AddFlow, openAdd } from "./AddFlow";
+import { tx, type TxKey } from "./i18n.tg";
 
-const TABS = [
-  { to: "/tg", label: "Bosh", icon: Home, end: true },
-  { to: "/tg/qarzlar", label: "Qarzlar", icon: Users },
-  { to: "/tg/hisobot", label: "Hisobot", icon: PieChart },
+const TAB_H = 62;
+
+/** Экраны вкладки «Ещё»: подсвечиваем её и на вложенных страницах. */
+const MORE_PATHS = ["/tg/yana", "/tg/hisobot", "/tg/jurnal", "/tg/sozlamalar"];
+
+const TABS: { to: string; text: TxKey; icon: typeof Home; end?: boolean }[] = [
+  { to: "/tg", text: "navHome", icon: Home, end: true },
+  { to: "/tg/amallar", text: "navOps", icon: ListOrdered },
+  { to: "/tg/qarzlar", text: "navDebts", icon: Users },
+  { to: "/tg/yana", text: "navMore", icon: Menu },
 ];
 
-const TAB_H = 60;
+function Tab({ to, text, icon: Icon, end }: (typeof TABS)[number]) {
+  const { pathname } = useLocation();
+  const more = to === "/tg/yana" && MORE_PATHS.some((p) => pathname.startsWith(p));
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      onClick={() => haptic("light")}
+      className={({ isActive }) =>
+        `flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${isActive || more ? "text-ink" : "text-ink-3"}`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <Icon size={22} strokeWidth={isActive || more ? 2.1 : 1.6} />
+          <span className="max-w-full truncate px-0.5">{tx(text)}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 function TabBar() {
   return (
@@ -26,148 +51,22 @@ function TabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label={t("Bo'limlar")}
     >
-      <div className="mx-auto grid max-w-[560px] grid-cols-3" style={{ height: TAB_H }}>
-        {TABS.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={() => haptic("light")}
-            className={({ isActive }) => `flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium ${isActive ? "text-brand-text" : "text-ink-3"}`}
+      <div className="mx-auto grid max-w-[560px] grid-cols-5" style={{ height: TAB_H }}>
+        <Tab {...TABS[0]} />
+        <Tab {...TABS[1]} />
+        <div className="flex items-start justify-center">
+          <button
+            onClick={() => openAdd("menu")}
+            aria-label={tx("add")}
+            className="-mt-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-brand-ink shadow-float ring-4 ring-bg active:scale-95"
           >
-            {({ isActive }) => (
-              <>
-                <Icon size={22} strokeWidth={isActive ? 2 : 1.6} />
-                {t(label)}
-              </>
-            )}
-          </NavLink>
-        ))}
+            <Plus size={28} strokeWidth={2.2} />
+          </button>
+        </div>
+        <Tab {...TABS[2]} />
+        <Tab {...TABS[3]} />
       </div>
     </nav>
-  );
-}
-
-/** Микрофон справа снизу; текстовое поле раскрывается по тапу на «Aa». */
-function TgComposer() {
-  const v = useVoiceInput();
-  const [typing, setTyping] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (typing) input.current?.focus();
-  }, [typing]);
-
-  // «Дописать» из баннера пропущенного дня
-  useEffect(() => {
-    const on = (e: Event) => {
-      const prefill = (e as CustomEvent<{ prefill?: string }>).detail?.prefill ?? "";
-      if (prefill) v.setText(prefill);
-      setTyping(true);
-    };
-    window.addEventListener("flowcast:write", on);
-    return () => window.removeEventListener("flowcast:write", on);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const bottom = `calc(${TAB_H + 14}px + env(safe-area-inset-bottom))`;
-
-  return (
-    <>
-      <div className="pointer-events-none fixed inset-x-0 z-30 px-4" style={{ bottom }}>
-        <div className="mx-auto flex max-w-[560px] flex-col items-end gap-2">
-          <AnimatePresence>
-            {v.hint && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                role="status"
-                className="pointer-events-auto flex w-full items-start gap-2 rounded-el bg-surface px-4 py-3 text-[14px] text-ink-2 shadow-float"
-              >
-                <span className="flex-1">{v.hint}</span>
-                <button onClick={() => v.setHint(null)} aria-label={t("Yopish")} className="text-ink-3">
-                  <X size={16} />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="pointer-events-auto flex w-full items-center justify-end gap-2.5">
-            <AnimatePresence initial={false}>
-              {(typing || v.recording) && (
-                <motion.form
-                  key="bar"
-                  initial={{ opacity: 0, scaleX: 0.6 }}
-                  animate={{ opacity: 1, scaleX: 1 }}
-                  exit={{ opacity: 0, scaleX: 0.6, transition: { duration: 0.12 } }}
-                  style={{ originX: 1 }}
-                  className="flex h-14 flex-1 items-center gap-2 rounded-full bg-surface pr-2 pl-5 shadow-float"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    v.sendText();
-                  }}
-                >
-                  {v.recording ? (
-                    <>
-                      <span className="num text-[14px] font-medium text-neg-text">0:{String(v.seconds).padStart(2, "0")}</span>
-                      <LiveWave levels={v.levels} className="h-7 flex-1 text-neg" />
-                      <button type="button" onClick={v.cancel} className="px-2 text-[14px] text-ink-3">
-                        {t("Bekor")}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <label htmlFor="tg-input" className="sr-only">
-                        {t("Nima bo'ldi?")}
-                      </label>
-                      <input
-                        id="tg-input"
-                        ref={input}
-                        value={v.text}
-                        onChange={(e) => v.setText(e.target.value)}
-                        placeholder={t("Bugun naqdga 1 million sotdim")}
-                        className="h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3"
-                        enterKeyHint="send"
-                        disabled={v.busy !== null}
-                        autoComplete="off"
-                      />
-                      <button
-                        type={v.text.trim() ? "submit" : "button"}
-                        onClick={v.text.trim() ? undefined : () => setTyping(false)}
-                        className="flex h-10 min-w-10 items-center justify-center rounded-full bg-surface-2 px-3 text-[14px] font-medium"
-                        aria-label={v.text.trim() ? t("Yuborish") : t("Yopish")}
-                      >
-                        {v.busy === "text" ? "…" : v.text.trim() ? t("Yuborish") : <X size={16} />}
-                      </button>
-                    </>
-                  )}
-                </motion.form>
-              )}
-            </AnimatePresence>
-            {!typing && !v.recording && (
-              <button
-                onClick={() => setTyping(true)}
-                aria-label={t("Matn bilan yozish")}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-ink-2 shadow-float active:scale-95"
-              >
-                <Keyboard size={20} strokeWidth={1.75} />
-              </button>
-            )}
-            <MicButton v={v} size={60} />
-          </div>
-        </div>
-      </div>
-      <DraftSheet
-        result={v.result}
-        autoListen={v.resultVia === "voice"}
-        onClose={() => {
-          v.clearResult();
-          setTyping(false);
-        }}
-        onFix={() => setTyping(true)}
-      />
-    </>
   );
 }
 
@@ -175,18 +74,18 @@ export function TgLayout() {
   return (
     <LiveProvider>
       <ReminderProvider>
-        <div className="min-h-dvh bg-bg">
-          {/* нижний резерв: табы + кнопка микрофона + safe-area — контент не уходит под них */}
-          <main className="mx-auto max-w-[560px] px-4 pt-3" style={{ paddingBottom: `calc(${TAB_H + 96}px + env(safe-area-inset-bottom))` }}>
+        <div className="min-h-dvh bg-bg" style={{ "--tg-tabbar-h": `${TAB_H}px` } as CSSProperties}>
+          {/* сверху — вырез экрана и шапка Telegram в полноэкранном режиме; снизу — панель вкладок */}
+          <main
+            className="mx-auto max-w-[560px] px-4"
+            style={{
+              paddingTop: "calc(12px + max(env(safe-area-inset-top), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px))",
+              paddingBottom: `calc(${TAB_H + 28}px + env(safe-area-inset-bottom))`,
+            }}
+          >
             <Outlet />
           </main>
-          {/* мягкая подложка под плавающими кнопками — контент не «врезается» в них */}
-          <div
-            className="pointer-events-none fixed inset-x-0 z-20 h-28 bg-gradient-to-t from-bg to-transparent"
-            style={{ bottom: `calc(${TAB_H}px + env(safe-area-inset-bottom))` }}
-            aria-hidden
-          />
-          <TgComposer />
+          <AddFlow />
           <TabBar />
         </div>
       </ReminderProvider>

@@ -7,8 +7,7 @@ import { inTelegram } from "./lib/telegram";
 import { sessionToken } from "./lib/auth";
 import { Login } from "./screens/Login";
 import { Pay } from "./screens/Pay";
-import { TgLayout } from "./tg/TgLayout";
-import { TgDebtDetail, TgDebts, TgHome, TgReport } from "./tg/pages";
+import TgApp from "./tg/TgApp";
 import { ToastHost } from "./ui/Toast";
 
 /** /app — только после входа (сайт) или из Telegram. ?reset и прочие параметры переживают редирект. */
@@ -44,13 +43,7 @@ export default function App() {
           <Route path="jurnal" element={<AppJournal />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
-        <Route path="/tg" element={<TgLayout />}>
-          <Route index element={<TgHome />} />
-          <Route path="qarzlar" element={<TgDebts />} />
-          <Route path="qarzlar/:id" element={<TgDebtDetail />} />
-          <Route path="hisobot" element={<TgReport />} />
-          <Route path="*" element={<Navigate to="/tg" replace />} />
-        </Route>
+        <Route path="/tg/*" element={<TgApp />} />
         <Route path="/pay/:token" element={<Pay />} />
         <Route path="*" element={<Navigate to={inTelegram ? "/tg" : "/"} replace />} />
       </Routes>
