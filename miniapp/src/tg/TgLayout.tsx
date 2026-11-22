@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ReminderProvider } from "../features/Reminder";
 import { LiveProvider } from "../lib/live";
+import { t } from "../lib/i18n";
 import { haptic } from "../lib/telegram";
 import { AddFlow, openAdd } from "./AddFlow";
 import { tx, type TxKey } from "./i18n.tg";
@@ -48,7 +49,7 @@ function TabBar() {
     <nav
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      aria-label={tx("navMore")}
+      aria-label={t("Bo'limlar")}
     >
       <div className="mx-auto grid max-w-[560px] grid-cols-5" style={{ height: TAB_H }}>
         <Tab {...TABS[0]} />

@@ -100,7 +100,9 @@ function ArtYes() {
   );
 }
 
-const screen = "flex min-h-dvh flex-col bg-bg pt-[calc(16px+env(safe-area-inset-top))] pb-[calc(20px+env(safe-area-inset-bottom))]";
+// сверху — вырез экрана и шапка Telegram в полноэкранном режиме (CSS-переменные ставит telegram-web-app.js)
+const screen =
+  "mx-auto flex min-h-dvh w-full max-w-[560px] flex-col bg-bg pt-[calc(16px+max(env(safe-area-inset-top),var(--tg-safe-area-inset-top,0px))+var(--tg-content-safe-area-inset-top,0px))] pb-[calc(20px+env(safe-area-inset-bottom))]";
 
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<"intro" | "auth" | "biz">("intro");
