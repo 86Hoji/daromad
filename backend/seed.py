@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import sqlite3
 from datetime import date, timedelta
@@ -118,9 +119,10 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
                     "VALUES (?,?,?,?,?,?, 'paid')",
                     (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, d.isoformat(), "bank"))
 
+        demo_phone = config._digits_phone(os.getenv("DEMO_DEBTOR_PHONE", "")) or config.DEMO_DEBTOR_PHONE
         for name, amount, ago, phone, consent in DEBTS:
-            if name == "Jamshid" and config.DEMO_DEBTOR_PHONE:
-                phone = config.DEMO_DEBTOR_PHONE      # свой/командный номер: демо-SMS не уйдёт незнакомцу
+            if name == "Jamshid" and demo_phone:
+                phone, consent = demo_phone, True     # свой/командный номер: демо-SMS не уйдёт незнакомцу
             conn.execute(
                 "INSERT INTO debts (shop_id, person_name, phone, sms_consent, amount, remaining, created_at, status) "
                 "VALUES (?,?,?,?,?,?,?, 'open')",
