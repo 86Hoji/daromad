@@ -48,8 +48,11 @@ export function AddFlow() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoResult, setPhotoResult] = useState<ProcessResult | null>(null);
   const file = useRef<HTMLInputElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const timers = useRef<number[]>([]);
+  /** последний набранный текст и фраза для «Исправить» (лист черновиков к моменту onFix уже закрыт) */
+  const lastTyped = useRef("");
+  const fixText = useRef("");
   // актуальные функции для подписок на события (подписка одна на всё время жизни)
   const actions = useRef({ voice: () => {}, scan: () => {}, text: (_prefill?: string) => {} });
 
@@ -102,7 +105,12 @@ export function AddFlow() {
   // оно возвращает фокус на кнопку «+» (а новый лист при открытии ставит фокус на себя)
   useEffect(() => {
     if (!typing) return;
-    const id = window.setTimeout(() => input.current?.focus(), AFTER_SHEET + 120);
+    const id = window.setTimeout(() => {
+      const el = input.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length); // курсор в конец фразы — дописать или поправить
+    }, AFTER_SHEET + 120);
     return () => window.clearTimeout(id);
   }, [typing]);
 
@@ -130,6 +138,7 @@ export function AddFlow() {
 
   const sendText = () => {
     if (!v.text.trim()) return;
+    lastTyped.current = v.text.trim();
     haptic("medium");
     setTyping(false);
     v.sendText();
@@ -157,6 +166,14 @@ export function AddFlow() {
 
   const result = v.result ?? photoResult;
   const anyOpen = menu || voice || typing || result !== null;
+
+  // что подставить в поле по «Исправить»: набранный текст как есть; для голоса и фото — распознанная фраза
+  useEffect(() => {
+    if (!result) return;
+    const viaText = result === v.result && v.resultVia === "text";
+    fixText.current = (viaText ? lastTyped.current : "") || result.transcript || "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   // страховка: все листы закрыты и диалогов на странице нет — блокировки прокрутки быть не должно
   useEffect(() => {
@@ -224,13 +241,21 @@ export function AddFlow() {
           <label htmlFor="tg-add-text" className="sr-only">
             {t("Nima bo'ldi?")}
           </label>
-          <input
+          {/* многострочное поле: распознанную фразу (голос, фото) удобно править целиком; Enter — отправить */}
+          <textarea
             id="tg-add-text"
             ref={input}
             value={v.text}
             onChange={(e) => v.setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                sendText();
+              }
+            }}
             placeholder={t("Bugun naqdga 1 million sotdim")}
-            className="h-14 w-full rounded-el bg-surface-2 px-4 text-[16px] outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-ink/20"
+            rows={3}
+            className="block max-h-[40dvh] min-h-[88px] w-full resize-none rounded-el bg-surface-2 px-4 py-3.5 text-[16px] leading-snug outline-none [field-sizing:content] placeholder:text-ink-3 focus:ring-2 focus:ring-ink/20"
             enterKeyHint="send"
             autoComplete="off"
           />
@@ -259,7 +284,11 @@ export function AddFlow() {
         result={result}
         autoListen={!!v.result && v.resultVia === "voice"}
         onClose={closeDrafts}
-        onFix={() => later(() => setTyping(true))}
+        onFix={() => {
+          // «Исправить»: в поле — то, что сказали / написали / прочитали с фото, чтобы поправить, а не набирать заново
+          if (fixText.current) v.setText(fixText.current);
+          later(() => setTyping(true));
+        }}
       />
 
       {/* подсказка о микрофоне, если лист голоса уже закрыт */}
