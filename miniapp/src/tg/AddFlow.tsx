@@ -56,19 +56,26 @@ export function AddFlow() {
   const later = (fn: () => void) => timers.current.push(window.setTimeout(fn, AFTER_SHEET));
   useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
 
+  // Следующий лист открываем только после того, как меню [ + ] закрылось: два листа одновременно
+  // по очереди запоминают и восстанавливают блокировку прокрутки body, и страница оставалась
+  // с overflow: hidden (не листалась колесом / пальцем).
+  const afterMenu = (fn: () => void) => {
+    if (menu) {
+      setMenu(false);
+      later(fn);
+    } else fn();
+  };
   const startVoice = () => {
-    setMenu(false);
-    setVoice(true);
-    if (!v.recording) v.toggleMic();
+    if (!v.recording) v.toggleMic(); // микрофон — сразу, в том же нажатии
+    afterMenu(() => setVoice(true));
   };
   const startScan = () => {
     setMenu(false);
     file.current?.click(); // в том же нажатии — иначе браузер не откроет камеру
   };
   const startText = (prefill?: string) => {
-    setMenu(false);
     if (prefill) v.setText(prefill);
-    setTyping(true);
+    afterMenu(() => setTyping(true));
   };
   actions.current = { voice: startVoice, scan: startScan, text: startText };
 
@@ -149,6 +156,17 @@ export function AddFlow() {
   };
 
   const result = v.result ?? photoResult;
+  const anyOpen = menu || voice || typing || result !== null;
+
+  // страховка: все листы закрыты и диалогов на странице нет — блокировки прокрутки быть не должно
+  useEffect(() => {
+    if (anyOpen) return;
+    const id = window.setTimeout(() => {
+      if (!document.querySelector('[role="dialog"]') && document.body.style.overflow === "hidden") document.body.style.overflow = "";
+    }, AFTER_SHEET + 60);
+    return () => window.clearTimeout(id);
+  }, [anyOpen]);
+
   const busy = photoBusy ? tx("busyPhoto") : v.busy === "voice" ? tx("busyVoice") : v.busy === "text" ? tx("busyText") : null;
 
   return (
