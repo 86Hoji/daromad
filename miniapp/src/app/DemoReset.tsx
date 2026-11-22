@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { useLive } from "../lib/live";
 import { toast } from "../ui/Toast";
+import { t } from "../lib/i18n";
 
 const showButton = import.meta.env.DEV || new URLSearchParams(window.location.search).has("reset");
 
@@ -17,10 +18,10 @@ export function useDemoReset(hotkey = false) {
     try {
       await api.demoReset();
       await refresh();
-      toast("Demo ma'lumotlar qayta tiklandi", "pos");
+      toast(t("Demo ma'lumotlar qayta tiklandi"), "pos");
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
-      toast(status === 404 ? "Demo reset o'chirilgan (DEMO_RESET=1 kerak)" : e instanceof ApiError ? e.message : "Xatolik", "neg");
+      toast(status === 404 ? t("Demo reset o'chirilgan (DEMO_RESET=1 kerak)") : e instanceof ApiError ? e.message : t("Xatolik"), "neg");
     } finally {
       setBusy(false);
     }

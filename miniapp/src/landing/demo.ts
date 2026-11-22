@@ -1,6 +1,6 @@
 // Офлайн-данные лендинга: если бэкенд недоступен, «Pul chizig'i» и песочница всё равно показывают пример.
 import type { Draft, Forecast, ForecastDay } from "../lib/api";
-import { WEEKDAYS } from "../lib/format";
+import { WEEKDAYS_UZ_LIST } from "../lib/format";
 
 const HISTORY = [1406000, 1866000, 2436000, 2957000, 349000, 942000, 1182000, 390000, 976000, 1478000, 311000, 717000, 487000, 487000];
 // [balance, low, high] на 14 дней вперёд; на 5-й день — платёж Акмалу 3 млн
@@ -37,7 +37,7 @@ export function demoForecast(): Forecast {
     const d = shift(now, i + 1);
     return {
       date: iso(d),
-      weekday: WEEKDAYS[(d.getDay() + 6) % 7],
+      weekday: WEEKDAYS_UZ_LIST[(d.getDay() + 6) % 7],
       balance,
       low,
       high,

@@ -1,14 +1,15 @@
 // Отчёт: итоги периода, бары категорий, шкала доверия, журнал действий.
 import { Bot, Cog, User } from "lucide-react";
 import type { AuditItem, EntriesResp } from "../lib/api";
-import { CATEGORY_LABEL, ddmm, money, moneyShort, timeHM } from "../lib/format";
+import { categoryLabel, ddmm, money, moneyShort, timeHM } from "../lib/format";
 import { AnimatedNumber } from "../ui/AnimatedNumber";
+import { t } from "../lib/i18n";
 
 export function Totals({ entries, dense = false }: { entries: EntriesResp; dense?: boolean }) {
   const items = [
-    { label: "Sotuv", v: entries.sales, cls: "" },
-    { label: "Xarajat", v: entries.expenses, cls: "" },
-    { label: "Foyda", v: entries.profit, cls: entries.profit >= 0 ? "text-pos-text" : "text-neg-text" },
+    { label: t("Sotuv"), v: entries.sales, cls: "" },
+    { label: t("Xarajat"), v: entries.expenses, cls: "" },
+    { label: t("Foyda"), v: entries.profit, cls: entries.profit >= 0 ? "text-pos-text" : "text-neg-text" },
   ];
   return (
     <dl className="grid grid-cols-3 gap-4">
@@ -28,13 +29,13 @@ export function CategoryBars({ data }: { data: Record<string, number> }) {
   const cats = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...cats.map(([, v]) => v));
   const total = cats.reduce((s, [, v]) => s + v, 0) || 1;
-  if (cats.length === 0) return <p className="text-ink-3">Bu davrda xarajat yo'q.</p>;
+  if (cats.length === 0) return <p className="text-ink-3">{t("Bu davrda xarajat yo'q.")}</p>;
   return (
     <ul className="space-y-4">
       {cats.map(([cat, v], i) => (
         <li key={cat}>
           <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[15px]">
-            <span className="font-medium">{CATEGORY_LABEL[cat] ?? cat}</span>
+            <span className="font-medium">{categoryLabel(cat)}</span>
             <span className="num text-ink-2">
               {money(v)} <span className="text-ink-3">· {Math.round((v / total) * 100)}%</span>
             </span>
@@ -49,7 +50,7 @@ export function CategoryBars({ data }: { data: Record<string, number> }) {
 }
 
 const TRUST = [
-  { key: "tasdiqlangan", label: "Tasdiqlangan", hint: "bank orqali", cls: "bg-ink" },
+  { key: "tasdiqlangan", label: "Tasdiqlangan", hint: "bank va havola orqali", cls: "bg-ink" },
   { key: "skrinshot", label: "Skrinshot", hint: "chek, ilova", cls: "bg-ink-3" },
   { key: "so'zdan", label: "So'zdan", hint: "ovoz va matn", cls: "bg-ink-3/30" },
 ];
@@ -57,18 +58,18 @@ const TRUST = [
 export function TrustScale({ share }: { share: Record<string, number> }) {
   return (
     <div>
-      <div className="flex h-3 gap-[3px] overflow-hidden rounded-full" role="img" aria-label={TRUST.map((t) => `${t.label} ${Math.round((share[t.key] ?? 0) * 100)}%`).join(", ")}>
-        {TRUST.map((t) => (share[t.key] ?? 0) > 0 && <div key={t.key} className={`${t.cls} rounded-full`} style={{ width: `${(share[t.key] ?? 0) * 100}%` }} />)}
+      <div className="flex h-3 gap-[3px] overflow-hidden rounded-full" role="img" aria-label={TRUST.map((x) => `${t(x.label)} ${Math.round((share[x.key] ?? 0) * 100)}%`).join(", ")}>
+        {TRUST.map((x) => (share[x.key] ?? 0) > 0 && <div key={x.key} className={`${x.cls} rounded-full`} style={{ width: `${(share[x.key] ?? 0) * 100}%` }} />)}
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-3">
-        {TRUST.map((t) => (
-          <div key={t.key}>
+        {TRUST.map((x) => (
+          <div key={x.key}>
             <dt className="flex items-center gap-2 text-[13.5px] text-ink-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${t.cls}`} aria-hidden />
-              {t.label}
+              <span className={`h-2.5 w-2.5 rounded-full ${x.cls}`} aria-hidden />
+              {t(x.label)}
             </dt>
-            <dd className="display mt-1 text-[20px] font-semibold">{Math.round((share[t.key] ?? 0) * 100)}%</dd>
-            <dd className="text-[12.5px] text-ink-3">{t.hint}</dd>
+            <dd className="display mt-1 text-[20px] font-semibold">{Math.round((share[x.key] ?? 0) * 100)}%</dd>
+            <dd className="text-[12.5px] text-ink-3">{t(x.hint)}</dd>
           </div>
         ))}
       </dl>
@@ -88,27 +89,36 @@ export const ACTION_LABEL: Record<string, string> = {
   shop_created: "Biznes qo'shildi",
   demo_linked: "Demo biznes ulandi",
   seed: "Demo ma'lumotlar yuklandi",
+  debt_reminder_sent: "Eslatma SMS yuborildi",
+  debt_reminder_failed: "Eslatma SMS yuborilmadi",
+  debt_paid_by_link: "Mijoz havola orqali to'ladi",
+  sms_sent: "Eslatma SMS yuborildi",
+  demo_reset: "Demo ma'lumotlar qayta tiklandi",
+  bank_payment: "Karta/QR to'lovi tushdi",
+  recurring_saved: "Doimiy to'lov saqlandi",
+  recurring_deleted: "Doimiy to'lov o'chirildi",
 };
 
 /** Строки песочницы лендинга (распознали -> сразу отклонили) — служебные, по умолчанию скрыты. */
 export const SERVICE_ACTIONS = new Set(["parsed", "drafts_rejected"]);
 
-const ACTOR = { owner: { label: "Egasi", icon: User }, ai: { label: "AI", icon: Bot }, system: { label: "Tizim", icon: Cog } };
+const ACTOR = { owner: { label: "Egasi", icon: User }, ai: { label: "AI", icon: Bot }, system: { label: "Tizim", icon: Cog }, debtor: { label: "Mijoz", icon: User } } as const;
 
 function detail(a: AuditItem): string | null {
   const p = (a.payload ?? {}) as Record<string, unknown>;
   switch (a.action) {
     case "parsed": {
       const ev = (p.events as unknown[] | undefined)?.length ?? 0;
-      return p.intent === "question" ? "savol" : `${ev} ta yozuv · ${p.source === "voice" ? "ovoz" : "matn"}`;
+      if (p.source === "photo" && p.intent !== "question") return `${t("{n} ta yozuv", { n: ev })} · ${t("rasm")}`;
+      return p.intent === "question" ? t("savol") : `${t("{n} ta yozuv", { n: ev })} · ${t(p.source === "voice" ? "ovoz" : p.source === "photo" ? "rasm" : "matn")}`;
     }
     case "drafts_confirmed":
-      return `${(p.confirmed as unknown[] | undefined)?.length ?? 0} ta yozuv`;
+      return t("{n} ta yozuv", { n: (p.confirmed as unknown[] | undefined)?.length ?? 0 });
     case "offer_accepted":
     case "offer_declined":
     case "offer_proposed": {
-      const t = p.type === "overdraft" ? "Overdraft" : p.type === "deposit" ? "Omonat" : "";
-      return p.amount ? `${t} ${money(Number(p.amount))}` : t || null;
+      const k = p.type === "overdraft" ? t("Overdraft") : p.type === "deposit" ? t("Omonat") : "";
+      return p.amount ? `${k} ${money(Number(p.amount))}` : k || null;
     }
     default:
       return null;
@@ -117,7 +127,7 @@ function detail(a: AuditItem): string | null {
 
 export function AuditList({ items, showService = false, limit }: { items: AuditItem[]; showService?: boolean; limit?: number }) {
   const list = items.filter((a) => showService || !SERVICE_ACTIONS.has(a.action)).slice(0, limit);
-  if (list.length === 0) return <p className="py-6 text-ink-3">Hozircha harakat yo'q.</p>;
+  if (list.length === 0) return <p className="py-6 text-ink-3">{t("Hozircha harakat yo'q.")}</p>;
   let lastDay = "";
   return (
     <ol>
@@ -125,7 +135,7 @@ export function AuditList({ items, showService = false, limit }: { items: AuditI
         const day = a.created_at.slice(0, 10);
         const header = day !== lastDay;
         lastDay = day;
-        const actor = ACTOR[a.actor];
+        const actor = ACTOR[a.actor as keyof typeof ACTOR] ?? ACTOR.system;
         const Icon = actor.icon;
         const d = detail(a);
         return (
@@ -133,14 +143,14 @@ export function AuditList({ items, showService = false, limit }: { items: AuditI
             {header && <div className="pt-4 pb-2 text-[13px] font-medium text-ink-3 first:pt-0">{ddmm(day)}</div>}
             <div className="flex items-start gap-3 py-2.5">
               <span className="num w-12 shrink-0 pt-0.5 text-[13.5px] text-ink-3">{timeHM(a.created_at)}</span>
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3" title={actor.label}>
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3" title={t(actor.label)}>
                 <Icon size={14} strokeWidth={1.75} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-medium">{ACTION_LABEL[a.action] ?? a.action}</span>
+                <span className="block text-[15px] font-medium">{ACTION_LABEL[a.action] ? t(ACTION_LABEL[a.action]) : a.action}</span>
                 {d && <span className="num block text-[13.5px] text-ink-2">{d}</span>}
               </span>
-              <span className="pt-0.5 text-[13px] text-ink-3">{actor.label}</span>
+              <span className="pt-0.5 text-[13px] text-ink-3">{t(actor.label)}</span>
             </div>
           </li>
         );

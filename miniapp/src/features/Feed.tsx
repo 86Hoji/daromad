@@ -2,14 +2,15 @@
 import { Building2, Image, Keyboard, Mic } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Entry } from "../lib/api";
-import { CATEGORY_LABEL, ddmm, money } from "../lib/format";
+import { categoryLabel, ddmm, money } from "../lib/format";
+import { t } from "../lib/i18n";
 import { Skeleton } from "../ui/bits";
 
 const SOURCE: Record<string, { label: string; icon: typeof Mic }> = {
   voice: { label: "ovoz", icon: Mic },
   text: { label: "matn", icon: Keyboard },
-  photo: { label: "skrinshot", icon: Image },
-  bank: { label: "bank", icon: Building2 },
+  photo: { label: "rasm", icon: Image },
+  bank: { label: "to'lovlardan", icon: Building2 },
   link: { label: "havola", icon: Building2 },
 };
 
@@ -23,7 +24,7 @@ export function LiveFeed({ items, fresh, today, limit = 8 }: { items: Entry[] | 
         ))}
       </div>
     );
-  if (items.length === 0) return <p className="py-6 text-ink-2">Hali yozuv yo'q. Mikrofonni bosing va ayting: «Bugun 1 million sotdim».</p>;
+  if (items.length === 0) return <p className="py-6 text-ink-2">{t("Hali yozuv yo'q. Mikrofonni bosing va ayting: «Bugun 1 million sotdim».")}</p>;
   return (
     <ul className="-mx-3">
       <AnimatePresence initial={false}>
@@ -44,18 +45,18 @@ export function LiveFeed({ items, fresh, today, limit = 8 }: { items: Entry[] | 
             >
               <span
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isNew ? "bg-brand text-brand-ink" : "bg-surface-2 text-ink-3"}`}
-                title={s.label}
+                title={t(s.label)}
               >
                 <Icon size={16} strokeWidth={1.75} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-medium">
-                  {sale ? "Sotuv" : CATEGORY_LABEL[e.category] ?? e.category}
+                  {sale ? t("Sotuv") : categoryLabel(e.category)}
                   {e.note ? <span className="font-normal text-ink-3"> · {e.note}</span> : null}
                 </span>
                 <span className="text-[13px] text-ink-3">
-                  {e.date === today ? "bugun" : ddmm(e.date)} · {s.label}
-                  {isNew && <span className="ml-1.5 font-medium text-brand-text">yangi</span>}
+                  {e.date === today ? t("bugun") : ddmm(e.date)} · {t(s.label)}
+                  {isNew && <span className="ml-1.5 font-medium text-brand-text">{t("yangi")}</span>}
                 </span>
               </span>
               <span className={`num text-[15px] font-semibold ${sale ? "text-pos-text" : "text-ink"}`}>

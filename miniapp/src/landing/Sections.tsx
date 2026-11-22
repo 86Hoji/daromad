@@ -16,10 +16,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MoneyLine } from "../chart/MoneyLine";
 import { DraftCards } from "../features/Drafts";
 import { api, type Forecast } from "../lib/api";
+import { capitalize, weekday } from "../lib/format";
 import { EXAMPLES, demoForecast } from "./demo";
 import { CREDIT_FACT, THESES } from "./facts";
 import { WAVE } from "./HeroScene";
 import { Sandbox } from "./Sandbox";
+import { t } from "../lib/i18n";
 
 export const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
 export const H2 = "display text-[clamp(34px,4.4vw,62px)] leading-[1.02] font-bold tracking-[-0.04em]";
@@ -88,17 +90,17 @@ export function Problem() {
   return (
     <section className={`${WRAP} py-24 lg:py-36`} aria-labelledby="muammo">
       <Reveal>
-        <Eyebrow n="01">Muammo</Eyebrow>
+        <Eyebrow n="01">{t("Muammo")}</Eyebrow>
       </Reveal>
       <Reveal i={1}>
         <h2 id="muammo" className={`${H2} max-w-[920px]`}>
-          Pul yetmasligi <span className="text-ink-3">to'lov kuni</span> bilinadi.
+          {t("Pul yetmasligi")} <span className="text-ink-3">{t("to'lov kuni")}</span> {t("bilinadi.")}
         </h2>
       </Reveal>
       <div className="mt-14 grid grid-cols-1 gap-5 lg:mt-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-6">
         <Reveal className="h-full">
           <figure className="glass lift-2 flex h-full flex-col justify-between rounded-[32px] p-8 sm:p-10">
-            <div className="display text-[clamp(84px,8vw,124px)] leading-[0.85] font-bold tracking-[-0.06em]" aria-label={`taxminan ${CREDIT_FACT.value} foiz`}>
+            <div className="display text-[clamp(84px,8vw,124px)] leading-[0.85] font-bold tracking-[-0.06em]" aria-label={t("taxminan {n} foiz", { n: CREDIT_FACT.value })}>
               <span className="text-ink-3" aria-hidden>
                 ~
               </span>
@@ -108,18 +110,18 @@ export function Problem() {
               </span>
             </div>
             <figcaption className="mt-12">
-              <p className="text-[20px] leading-snug text-ink sm:text-[22px]">{CREDIT_FACT.text}</p>
-              <p className="mt-3 text-[13.5px] text-ink-3">{CREDIT_FACT.source}</p>
+              <p className="text-[20px] leading-snug text-ink sm:text-[22px]">{t(CREDIT_FACT.text)}</p>
+              <p className="mt-3 text-[13.5px] text-ink-3">{t(CREDIT_FACT.source)}</p>
             </figcaption>
           </figure>
         </Reveal>
         <ol className="grid gap-5">
-          {THESES.map((t, i) => (
-            <Reveal as="li" key={t.title} i={i + 1} className="glass lift-1 flex gap-6 rounded-[28px] p-6 sm:gap-8 sm:p-8">
+          {THESES.map((th, i) => (
+            <Reveal as="li" key={th.title} i={i + 1} className="glass lift-1 flex gap-6 rounded-[28px] p-6 sm:gap-8 sm:p-8">
               <span className="display num text-[15px] font-semibold text-ink-3">0{i + 1}</span>
               <div>
-                <h3 className="display text-[22px] leading-tight font-semibold tracking-[-0.02em] sm:text-[24px]">{t.title}</h3>
-                <p className="mt-2.5 max-w-[560px] text-[16px] leading-relaxed text-ink-2">{t.text}</p>
+                <h3 className="display text-[22px] leading-tight font-semibold tracking-[-0.02em] sm:text-[24px]">{t(th.title)}</h3>
+                <p className="mt-2.5 max-w-[560px] text-[16px] leading-relaxed text-ink-2">{t(th.text)}</p>
               </div>
             </Reveal>
           ))}
@@ -134,7 +136,7 @@ export function Problem() {
 const STEPS = [
   {
     title: "Gapiring",
-    text: "Savdo, xarajat, qarz yoki kelgusi to'lovni o'zbekcha ayting yoki yozing. Telegram'dagi oddiy ovozli xabar ham bo'ladi.",
+    text: "Naqd savdo, xarajat, qarz yoki kelgusi to'lovni o'zbekcha yoki ruscha ayting yoki yozing. Telegram'dagi oddiy ovozli xabar ham bo'ladi. Karta va QR to'lovlari o'zi tushadi.",
   },
   {
     title: "Tasdiqlang",
@@ -198,8 +200,8 @@ function VoiceBody() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, type: "spring", stiffness: 160, damping: 20 }}
       >
-        <div className="text-[12.5px] text-ink-3">Eshitganim · 0:06</div>
-        <p className="mt-1 text-[17px] leading-snug">«{EXAMPLES[0].text}»</p>
+        <div className="text-[12.5px] text-ink-3">{t("Eshitganim")} · 0:06</div>
+        <p className="mt-1 text-[17px] leading-snug">«{t(EXAMPLES[0].text)}»</p>
       </motion.div>
     </div>
   );
@@ -210,8 +212,8 @@ function ConfirmBody() {
   return (
     <div className="flex h-full flex-col justify-center">
       <div className="mb-4 flex items-baseline justify-between">
-        <span className="display text-[22px] font-semibold tracking-[-0.02em]">Yozib oldim</span>
-        <span className="text-[14px] text-ink-3">2 ta yozuv</span>
+        <span className="display text-[22px] font-semibold tracking-[-0.02em]">{t("Yozib oldim")}</span>
+        <span className="text-[14px] text-ink-3">{t("{n} ta yozuv", { n: 2 })}</span>
       </div>
       <DraftCards drafts={EXAMPLES[0].drafts} fx />
       <motion.div
@@ -221,9 +223,9 @@ function ConfirmBody() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.75, duration: 0.5, ease: EASE }}
       >
-        <span className="flex h-12 items-center justify-center rounded-full bg-surface/70 text-[15px] font-medium">Tuzatish</span>
+        <span className="flex h-12 items-center justify-center rounded-full bg-surface/70 text-[15px] font-medium">{t("Tuzatish")}</span>
         <span className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-brand-ink">
-          <Check size={17} strokeWidth={2} /> To'g'ri
+          <Check size={17} strokeWidth={2} /> {t("To'g'ri")}
         </span>
       </motion.div>
     </div>
@@ -235,10 +237,10 @@ function ChartBody({ forecast }: { forecast: Forecast }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="display text-[22px] font-semibold tracking-[-0.02em]">Pul chizig'i · 14 kun</span>
+        <span className="display text-[22px] font-semibold tracking-[-0.02em]">{t("Pul chizig'i")} · {t("14 kun")}</span>
         {red && (
           <span className="rounded-full bg-neg-soft px-3 py-1 text-[14px] font-medium text-neg-text">
-            {red.weekday}: kamomad
+            {capitalize(weekday(red.date))}: {t("kamomad")}
           </span>
         )}
       </div>
@@ -286,7 +288,7 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
       <div className="sticky top-0 flex h-screen items-center">
         <div className={`${WRAP} grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-center gap-14 xl:gap-20`}>
           <div>
-            <Eyebrow n="02">Qanday ishlaydi</Eyebrow>
+            <Eyebrow n="02">{t("Qanday ishlaydi")}</Eyebrow>
             <div className="flex gap-8">
               <Progress p={p} step={step} />
               <div className="relative min-h-[330px] flex-1">
@@ -299,8 +301,8 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
                     transition={reduce ? { duration: 0 } : { duration: 0.42, ease: EASE }}
                   >
                     <div className="num text-[15px] text-ink-3">0{step + 1} / 03</div>
-                    <h3 className={`${H2} mt-3`}>{STEPS[step].title}</h3>
-                    <p className={LEAD}>{STEPS[step].text}</p>
+                    <h3 className={`${H2} mt-3`}>{t(STEPS[step].title)}</h3>
+                    <p className={LEAD}>{t(STEPS[step].text)}</p>
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -312,7 +314,7 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
               {STEPS.map((s, i) => (
                 <span key={s.title} className={`relative rounded-full px-4 py-2 text-[14px] transition-colors duration-300 ${i === step ? "text-brand-ink" : "text-ink-3"}`}>
                   {i === step && <motion.span layoutId="story-tab" className="absolute inset-0 rounded-full bg-brand" transition={{ type: "spring", stiffness: 320, damping: 30 }} />}
-                  <span className="relative">{s.title}</span>
+                  <span className="relative">{t(s.title)}</span>
                 </span>
               ))}
             </div>
@@ -340,13 +342,13 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
 function StoryStacked({ forecast }: { forecast: Forecast }) {
   return (
     <div className={`${WRAP} py-24`}>
-      <Eyebrow n="02">Qanday ishlaydi</Eyebrow>
+      <Eyebrow n="02">{t("Qanday ishlaydi")}</Eyebrow>
       <ol className="space-y-16">
         {STEPS.map((s, i) => (
           <Reveal as="li" key={s.title}>
             <div className="num text-[15px] text-ink-3">0{i + 1} / 03</div>
-            <h3 className="display mt-2 text-[36px] leading-[1.04] font-bold tracking-[-0.04em]">{s.title}</h3>
-            <p className="mt-3 text-[17px] leading-relaxed text-ink-2">{s.text}</p>
+            <h3 className="display mt-2 text-[36px] leading-[1.04] font-bold tracking-[-0.04em]">{t(s.title)}</h3>
+            <p className="mt-3 text-[17px] leading-relaxed text-ink-2">{t(s.text)}</p>
             <div className="glass lift-2 mt-6 rounded-[28px] p-4 sm:p-6">
               <div className={i === 2 ? "h-[380px]" : ""}>
                 <SceneBody step={i} forecast={forecast} />
@@ -365,7 +367,7 @@ export function HowItWorks() {
   return (
     <section id="qanday" className="relative scroll-mt-0" aria-labelledby="qanday-h">
       <h2 id="qanday-h" className="sr-only">
-        Uch qadam: gapiring, tasdiqlang, oldindan biling
+        {t("Uch qadam: gapiring, tasdiqlang, oldindan biling")}
       </h2>
       {wide ? <StoryDesktop forecast={forecast} /> : <StoryStacked forecast={forecast} />}
     </section>
@@ -378,16 +380,16 @@ export function SandboxSection() {
   return (
     <section id="sinov" className={`${WRAP} scroll-mt-24 py-24 lg:py-36`} aria-labelledby="sinov-h">
       <Reveal>
-        <Eyebrow n="03">Sinov</Eyebrow>
+        <Eyebrow n="03">{t("Sinov")}</Eyebrow>
       </Reveal>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <Reveal i={1}>
           <h2 id="sinov-h" className={H2}>
-            O'zingiz sinab ko'ring.
+            {t("O'zingiz sinab ko'ring.")}
           </h2>
         </Reveal>
         <Reveal i={2}>
-          <p className="max-w-[420px] text-[17px] leading-relaxed text-ink-2">Gapni yozing — qanday yozuvlarga ajralishini ko'rasiz. Bu sinov: hech narsa saqlanmaydi.</p>
+          <p className="max-w-[420px] text-[17px] leading-relaxed text-ink-2">{t("Gapni yozing — qanday yozuvlarga ajralishini ko'rasiz. Bu sinov: hech narsa saqlanmaydi.")}</p>
         </Reveal>
       </div>
       <Reveal i={1} className="mt-12">
@@ -434,9 +436,9 @@ function TrustRecord({ r, i }: { r: (typeof RECORDS)[number]; i: number }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-ink-3">
-            {r.kind} · {r.src}
+            {t(r.kind)} · {t(r.src)}
           </div>
-          <div className="truncate text-[17px] font-medium">{r.title}</div>
+          <div className="truncate text-[17px] font-medium">{t(r.title)}</div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <span className={`num text-[17px] font-semibold ${r.tone}`}>{r.amount}</span>
@@ -450,11 +452,11 @@ function TrustRecord({ r, i }: { r: (typeof RECORDS)[number]; i: number }) {
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 22, delay: 0.15 }}
                 >
-                  {r.level}
+                  {t(r.level)}
                 </motion.span>
               ) : (
                 <motion.span key="off" className="text-shimmer text-[12.5px] leading-[24px]" exit={{ y: -24, opacity: 0 }} transition={{ duration: 0.2 }}>
-                  tekshirilmoqda…
+                  {t("tekshirilmoqda…")}
                 </motion.span>
               )}
             </AnimatePresence>
@@ -474,7 +476,7 @@ function TrustRecord({ r, i }: { r: (typeof RECORDS)[number]; i: number }) {
             </span>
           ))}
         </div>
-        <span className="text-[13px] text-ink-3">{r.note}</span>
+        <span className="text-[13px] text-ink-3">{t(r.note)}</span>
       </div>
     </motion.li>
   );
@@ -486,15 +488,15 @@ export function Trust() {
       <div className={`${WRAP} grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16`}>
         <div className="lg:sticky lg:top-32 lg:self-start">
           <Reveal>
-            <Eyebrow n="04">Ishonch</Eyebrow>
+            <Eyebrow n="04">{t("Ishonch")}</Eyebrow>
           </Reveal>
           <Reveal i={1}>
             <h2 id="ishonch" className={H2S}>
-              AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz.
+              {t("AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz.")}
             </h2>
           </Reveal>
           <Reveal i={2}>
-            <p className={LEAD}>Har bir yozuvning ishonch darajasi bor. Hisobotda ham, bankda ham qaysi raqam qayerdan kelgani ko'rinadi. Summalarni til modeli emas, oddiy kod qo'shadi.</p>
+            <p className={LEAD}>{t("Har bir yozuvning ishonch darajasi bor. Hisobotda ham, bankda ham qaysi raqam qayerdan kelgani ko'rinadi. Summalarni til modeli emas, oddiy kod qo'shadi.")}</p>
           </Reveal>
         </div>
         <ol className="space-y-5 lg:pt-24">
@@ -528,7 +530,7 @@ function MiniTrust() {
       ].map(([h, c, l]) => (
         <div key={l} className="flex h-full flex-1 flex-col justify-end gap-1.5">
           <span className={`block w-full rounded-[8px] ${h} ${c}`} />
-          <span className="text-center text-[11.5px] text-ink-3">{l}</span>
+          <span className="text-center text-[11.5px] text-ink-3">{t(l)}</span>
         </div>
       ))}
     </div>
@@ -539,10 +541,10 @@ function MiniOffer() {
   return (
     <div className="flex h-16 items-center justify-between gap-3 rounded-[18px] bg-surface/70 px-4" aria-hidden>
       <div className="min-w-0">
-        <div className="text-[12px] text-ink-3">Payshanbadan oldin</div>
-        <div className="truncate text-[14.5px] font-medium">Overdraft · 400 000</div>
+        <div className="text-[12px] text-ink-3">{t("Payshanbadan oldin")}</div>
+        <div className="truncate text-[14.5px] font-medium">{t("Overdraft")} · 400 000</div>
       </div>
-      <span className="rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-medium text-brand-ink">Roziman</span>
+      <span className="rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-medium text-brand-ink">{t("Roziman")}</span>
     </div>
   );
 }
@@ -563,8 +565,8 @@ function BankPanel({ p, prog }: { p: (typeof BANK_POINTS)[number]; prog: MotionV
         <span className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-brand text-brand-ink shadow-[var(--elev-1)]">
           <p.icon size={24} strokeWidth={1.6} aria-hidden />
         </span>
-        <h3 className="display mt-7 text-[24px] leading-tight font-semibold tracking-[-0.02em]">{p.title}</h3>
-        <p className="mt-3 text-[16px] leading-relaxed text-ink-2">{p.text}</p>
+        <h3 className="display mt-7 text-[24px] leading-tight font-semibold tracking-[-0.02em]">{t(p.title)}</h3>
+        <p className="mt-3 text-[16px] leading-relaxed text-ink-2">{t(p.text)}</p>
       </div>
       <Art />
     </motion.li>
@@ -580,17 +582,17 @@ export function Banks() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
           <div>
             <Reveal>
-              <Eyebrow n="05">Banklar uchun</Eyebrow>
+              <Eyebrow n="05">{t("Banklar uchun")}</Eyebrow>
             </Reveal>
             <Reveal i={1}>
               <h2 id="banklar-h" className={H2}>
-                Ko'rinmas biznes — ko'rinadigan pul oqimi.
+                {t("Ko'rinmas biznes — ko'rinadigan pul oqimi.")}
               </h2>
             </Reveal>
           </div>
           <Reveal i={2}>
             <p className="max-w-[500px] text-[17px] leading-relaxed text-ink-2 lg:ml-auto">
-              Mikro biznesda hisobot ham, tarix ham yo'q. Bu yerda pul oqimi har kuni, egasining roziligi bilan ko'rinadi — kredit qarori taxmin emas, ma'lumot asosida.
+              {t("Mikro biznesda hisobot ham, tarix ham yo'q. Bu yerda pul oqimi har kuni, egasining roziligi bilan ko'rinadi — kredit qarori taxmin emas, ma'lumot asosida.")}
             </p>
           </Reveal>
         </div>

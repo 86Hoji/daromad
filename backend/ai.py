@@ -17,6 +17,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 import config
+import texts
 import uz_numbers
 from logic import WEEKDAYS_UZ
 
@@ -46,6 +47,7 @@ class AIParsed(BaseModel):
     question: Optional[str] = None
     question_date: Optional[str] = None
     transcript: str
+    language: Optional[str] = None
 
 
 PROMPT = """Sen "Flowcast" — O'zbekistondagi kichik va mikro biznes egasining ovozli moliyaviy yordamchisisan
@@ -78,13 +80,14 @@ category (sale/expense uchun): tovar | ijara | maosh | kommunal | transport | bo
 (paket, mayda narsalar -> boshqa; yo'l, benzin, taksi -> transport; svet, gaz, suv -> kommunal; ish haqi -> maosh).
 phone — telefon aytilsa yoki [PHONE_n] tokeni bo'lsa, o'shani qaytar (tokenni o'zgartirmay).
 transcript — aytilgan gapning to'liq matni (ovoz bo'lsa — eshitganingni yoz, tarjima qilma).
+language — egasi qaysi tilda gapirdi: "ru" (ruscha) yoki "uz" (o'zbekcha, lotin yoki kirill). Aralash bo'lsa — ko'proq qaysi til ishlatilgan.
 Agar gap tushunarsiz bo'lsa: intent="record", events=[], transcript = eshitganing.
 """
 
-QUESTION_PROMPT = """Sen "Flowcast" yordamchisisan. Biznes egasining savoliga o'zbek tilida (lotin) qisqa javob ber (1-4 gap).
+QUESTION_PROMPT = """Sen "Flowcast" yordamchisisan. Biznes egasining savoliga {language_rule} qisqa javob ber (1-4 gap).
 QATTIQ QOIDA: faqat quyidagi FAKTLARdagi raqamlarni ishlat, aynan shu ko'rinishda. Yangi raqam o'ylab topma,
 hech narsani qo'shma, ayirma, hisoblama. Kerakli fakt bo'lmasa — "bu haqda ma'lumot yo'q" de.
-Summalarni "1 200 000 so'm" ko'rinishida yoz.
+Summalarni "1 200 000 {currency}" ko'rinishida yoz.
 
 SAVOL: {question}
 
@@ -262,6 +265,7 @@ def postprocess(raw: dict, mapping: dict[str, str]) -> dict:
         "question": unmask(raw.get("question"), mapping),
         "question_date": raw.get("question_date"),
         "transcript": transcript,
+        "language": raw.get("language") if raw.get("language") in texts.LANGS else (texts.detect_lang(transcript) or texts.DEFAULT_LANG),
     }
 
 
@@ -324,9 +328,14 @@ def answer_uses_only_facts(answer: str, facts: dict) -> bool:
     return True
 
 
-async def answer_question(question: str, facts: dict) -> str:
+LANGUAGE_RULE = {"uz": "o'zbek tilida (lotin)", "ru": "rus tilida (по-русски)"}
+
+
+async def answer_question(question: str, facts: dict, lang: str = "uz") -> str:
     masked_q, _ = mask_phones(question)
-    prompt = QUESTION_PROMPT.format(question=masked_q, facts=json.dumps(facts, ensure_ascii=False, indent=1))
+    lang = lang if lang in LANGUAGE_RULE else "uz"
+    prompt = QUESTION_PROMPT.format(question=masked_q, facts=json.dumps(facts, ensure_ascii=False, indent=1),
+                                    language_rule=LANGUAGE_RULE[lang], currency=texts.currency(lang))
     return await _generate([prompt], temperature=0.2)
 
 

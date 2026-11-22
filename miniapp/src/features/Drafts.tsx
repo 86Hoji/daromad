@@ -4,14 +4,15 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { api, ApiError, type Draft, type ProcessResult } from "../lib/api";
 import { useLive } from "../lib/live";
-import { CATEGORY_LABEL, capitalize, ddmm, money, weekday } from "../lib/format";
+import { capitalize, categoryLabel, ddmm, money, weekday } from "../lib/format";
 import { haptic } from "../lib/telegram";
 import { Chip } from "../ui/bits";
 import { ListenButton } from "./Listen";
 import { Sheet } from "../ui/Sheet";
 import { toast } from "../ui/Toast";
+import { pick, t, tMaybe } from "../lib/i18n";
 
-const TYPE: Record<Draft["type"], { label: string; icon: typeof ArrowUpRight; sign: "+" | "−" | ""; tone: string }> = {
+export const DRAFT_TYPE: Record<Draft["type"], { label: string; icon: typeof ArrowUpRight; sign: "+" | "−" | ""; tone: string }> = {
   sale: { label: "Sotuv", icon: ArrowDownLeft, sign: "+", tone: "text-pos-text" },
   expense: { label: "Xarajat", icon: ArrowUpRight, sign: "−", tone: "text-ink" },
   debt_given: { label: "Qarzga berildi", icon: HandCoins, sign: "", tone: "text-warn-text" },
@@ -19,18 +20,18 @@ const TYPE: Record<Draft["type"], { label: string; icon: typeof ArrowUpRight; si
   scheduled_payment: { label: "Kutilayotgan to'lov", icon: CalendarClock, sign: "−", tone: "text-ink" },
 };
 
-function title(d: Draft): string {
+export function draftTitle(d: Draft): string {
   switch (d.type) {
     case "sale":
-      return d.note ? capitalize(d.note) : "Bugungi savdo";
+      return d.note ? capitalize(d.note) : t("Bugungi savdo");
     case "expense":
-      return CATEGORY_LABEL[d.category ?? "boshqa"] ?? d.category ?? "Boshqa";
+      return categoryLabel(d.category);
     case "debt_given":
-      return `${d.person ?? "Mijoz"} qarzga oldi`;
+      return pick({ uz: `${d.person ?? "Mijoz"} qarzga oldi`, ru: `${d.person ?? "Клиент"} взял в долг`, en: `${d.person ?? "Customer"} took on credit` });
     case "debt_returned":
-      return `${d.person ?? "Mijoz"} qarzini qaytardi`;
+      return pick({ uz: `${d.person ?? "Mijoz"} qarzini qaytardi`, ru: `${d.person ?? "Клиент"} вернул долг`, en: `${d.person ?? "Customer"} paid back` });
     case "scheduled_payment":
-      return d.person || d.note || "To'lov";
+      return d.person || d.note || t("To'lov");
   }
 }
 
@@ -48,8 +49,8 @@ export function DraftCards({ drafts, fx = false, fly = false }: { drafts: Draft[
     <ul className="space-y-2">
       <AnimatePresence initial>
         {drafts.map((d, i) => {
-          const t = TYPE[d.type];
-          const Icon = t.icon;
+          const ty = DRAFT_TYPE[d.type];
+          const Icon = ty.icon;
           const s = sub(d);
           return (
             <motion.li
@@ -63,21 +64,21 @@ export function DraftCards({ drafts, fx = false, fly = false }: { drafts: Draft[
                 <Icon size={18} strokeWidth={1.75} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[12.5px] text-ink-3">{t.label}</span>
-                <span className="block truncate text-[15.5px] font-medium">{title(d)}</span>
+                <span className="block text-[12.5px] text-ink-3">{t(ty.label)}</span>
+                <span className="block truncate text-[15.5px] font-medium">{draftTitle(d)}</span>
                 {s && <span className="num block truncate text-[13px] text-ink-3">{s}</span>}
               </span>
               <span className="flex flex-col items-end gap-1.5">
-                <span className={`num text-[16px] font-semibold ${t.tone}`}>
-                  {t.sign}
+                <span className={`num text-[16px] font-semibold ${ty.tone}`}>
+                  {ty.sign}
                   {money(d.amount)}
                 </span>
                 {d.needs_check ? (
                   <Chip tone="warn" icon={<AlertTriangle size={12} strokeWidth={2} />}>
-                    tekshiring
+                    {t("tekshiring")}
                   </Chip>
                 ) : (
-                  <Chip>{d.trust}</Chip>
+                  <Chip>{tMaybe(d.trust)}</Chip>
                 )}
               </span>
             </motion.li>
@@ -101,12 +102,12 @@ export function DraftSheet({ result, onClose, onFix, autoListen = false }: { res
     try {
       const r = await api.confirm(ids);
       haptic(r.errors.length ? "warning" : "success");
-      toast(r.errors.length ? r.errors[0] : "Saqlandi", r.errors.length ? "neg" : "pos");
+      toast(r.errors.length ? r.errors[0] : t("Saqlandi"), r.errors.length ? "neg" : "pos");
       onClose();
       await refresh();
     } catch (e) {
       haptic("error");
-      toast(e instanceof ApiError ? e.message : "Xatolik", "neg");
+      toast(e instanceof ApiError ? e.message : t("Xatolik"), "neg");
     } finally {
       setBusy(null);
     }
@@ -116,7 +117,7 @@ export function DraftSheet({ result, onClose, onFix, autoListen = false }: { res
     setBusy("fix");
     try {
       await api.reject(ids);
-      toast("Bekor qilindi — to'g'ri variantini yozing");
+      toast(t("Bekor qilindi — to'g'ri variantini yozing"));
       onClose();
       onFix?.();
     } finally {
@@ -126,7 +127,7 @@ export function DraftSheet({ result, onClose, onFix, autoListen = false }: { res
 
   if (isQuestion) {
     return (
-      <Sheet open={!!result} onClose={onClose} title="Javob" primary={{ label: "Yopish", onClick: onClose }}>
+      <Sheet open={!!result} onClose={onClose} title={t("Javob")} primary={{ label: t("Yopish"), onClick: onClose }}>
         <p className="text-[16px] leading-relaxed whitespace-pre-line">{result?.answer}</p>
         {result?.answer && <ListenButton className="mt-4" text={result.voice_text || result.answer} auto={autoListen} />}
       </Sheet>
@@ -138,11 +139,11 @@ export function DraftSheet({ result, onClose, onFix, autoListen = false }: { res
     <Sheet
       open={!!result}
       onClose={onClose}
-      title={has ? "Yozib oldim" : "Tushunmadim"}
-      primary={has ? { label: "To'g'ri", onClick: confirm, loading: busy === "ok", disabled: busy === "fix" } : { label: "Yopish", onClick: onClose }}
-      secondary={has ? { label: "Tuzatish", onClick: fix, loading: busy === "fix", disabled: busy === "ok" } : undefined}
+      title={has ? t("Yozib oldim") : t("Tushunmadim")}
+      primary={has ? { label: t("To'g'ri"), onClick: confirm, loading: busy === "ok", disabled: busy === "fix" } : { label: t("Yopish"), onClick: onClose }}
+      secondary={has ? { label: t("Tuzatish"), onClick: fix, loading: busy === "fix", disabled: busy === "ok" } : undefined}
     >
-      {has ? <DraftCards drafts={drafts} fly /> : <p className="text-[15px] text-ink-2">Summani va nima bo'lganini aytib ko'ring: «Bugun 1 million sotdim».</p>}
+      {has ? <DraftCards drafts={drafts} fly /> : <p className="text-[15px] text-ink-2">{t("Summani va nima bo'lganini aytib ko'ring: «Bugun 1 million sotdim».")}</p>}
       {result && result.errors.length > 0 && (
         <div className="mt-3 flex gap-2 rounded-el bg-warn-soft p-3 text-[14px] text-warn-text">
           <AlertTriangle size={16} strokeWidth={1.75} className="mt-0.5 shrink-0" />

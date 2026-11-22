@@ -14,6 +14,7 @@ import struct
 from collections import OrderedDict
 
 import config
+import texts
 
 log = logging.getLogger("flowcast.tts")
 
@@ -120,7 +121,7 @@ _TAGS = re.compile(r"<[^>]+>")
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️]")
 
 
-def for_voice(text: str, top: int = 3) -> str:
+def for_voice(text: str, top: int = 3, lang: str = "uz") -> str:
     """Короче для уха: списки — топ-3 и «yana N ta», без HTML и эмодзи. Итоговая сумма обычно в первой строке
     («Sizga jami … qarz bor:») и сохраняется."""
     text = _EMOJI.sub("", _TAGS.sub("", text))
@@ -137,7 +138,7 @@ def for_voice(text: str, top: int = 3) -> str:
     if items:
         shown = items[:top]
         rest = len(items) - len(shown)
-        parts.append("; ".join(shown) + ("." if not rest else f"; va yana {rest} ta."))
+        parts.append("; ".join(shown) + ("." if not rest else "; " + texts._("va yana {n} ta.", lang, n=rest)))
     parts += tail
     out = " ".join(p if p.endswith((".", "!", "?", ":", ";")) else p + "." for p in parts)
     return re.sub(r"\s+", " ", out).strip()[:MAX_CHARS]

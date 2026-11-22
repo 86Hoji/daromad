@@ -5,13 +5,14 @@ import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Deposit, type Forecast, type Overdraft, type Recommendation } from "../lib/api";
 import { useLive } from "../lib/live";
-import { capitalize, ddmm, money, moneyShort, untilLabel, weekday } from "../lib/format";
+import { capitalize, daysShort, ddmm, eventTitle, money, moneyShort, untilLabel, weekday } from "../lib/format";
 import { isOutflow } from "../chart/MoneyLine";
 import { haptic } from "../lib/telegram";
 import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { toast } from "../ui/Toast";
 import { useReminder } from "./Reminder";
+import { t } from "../lib/i18n";
 
 type Offer = Overdraft | Deposit;
 
@@ -56,12 +57,12 @@ export function useOfferFlow() {
     try {
       const r = await api.acceptOffer(offer.type, offer.amount, offer.term_days);
       haptic("success");
-      toast(`${r.bank}: ${offer.type === "overdraft" ? "overdraft" : "omonat"} rasmiylashtirildi`, "pos");
+      toast(offer.type === "overdraft" ? t("{bank}: overdraft rasmiylashtirildi", { bank: r.bank }) : t("{bank}: omonat rasmiylashtirildi", { bank: r.bank }), "pos");
       setOffer(null);
       await refresh();
     } catch (e) {
       haptic("error");
-      toast(e instanceof ApiError ? e.message : "Xatolik", "neg");
+      toast(e instanceof ApiError ? e.message : t("Xatolik"), "neg");
     } finally {
       setBusy(false);
     }
@@ -72,7 +73,7 @@ export function useOfferFlow() {
     setOffer(null);
     try {
       await api.declineOffer(o.type, o.amount, o.term_days);
-      toast("Taklif rad etildi");
+      toast(t("Taklif rad etildi"));
     } catch {
       /* отказ — не критично */
     }
@@ -96,9 +97,9 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
     const top = [...rec.debtors_to_remind, ...rec.top_debtors].filter((d) => !seen.has(d.id) && seen.add(d.id)).slice(0, 3);
     body = (
       <>
-        <Step n={1} tone="warn" icon={<BellRing size={18} strokeWidth={1.75} />} title="Qarzdorlarga eslating">
+        <Step n={1} tone="warn" icon={<BellRing size={18} strokeWidth={1.75} />} title={t("Qarzdorlarga eslating")}>
           <p className="mt-1 text-[14.5px] text-ink-2">
-            {rec.covers_by_debts ? `Qaytsa, ${moneyShort(rec.gap)} kamomad yopiladi.` : `Qarzlar kamomadning bir qismini yopadi.`}
+            {rec.covers_by_debts ? t("Qaytsa, {gap} kamomad yopiladi.", { gap: moneyShort(rec.gap) }) : t("Qarzlar kamomadning bir qismini yopadi.")}
           </p>
           {tg ? (
             <button
@@ -107,7 +108,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
             >
               <span className="min-w-0">
                 <span className="block truncate text-[15px] font-medium">{top.map((d) => d.person_name).join(", ")}</span>
-                <span className="num text-[13px] text-ink-3">{moneyShort(top.reduce((s, d) => s + d.remaining, 0))} · eng uzog'i {Math.max(...top.map((d) => d.days_open))} kun</span>
+                <span className="num text-[13px] text-ink-3">{moneyShort(top.reduce((s, d) => s + d.remaining, 0))} · {t("eng uzog'i {n}", { n: daysShort(Math.max(...top.map((d) => d.days_open))) })}</span>
               </span>
               <ChevronRight size={18} className="shrink-0 text-ink-3" />
             </button>
@@ -117,7 +118,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
                 <li key={d.id} className="flex items-center gap-3 rounded-el py-1">
                   <span className="flex min-w-0 flex-1 items-baseline gap-2">
                     <span className="truncate text-[15px] font-medium">{d.person_name}</span>
-                    <span className={`num shrink-0 text-[13px] ${d.days_open > 14 ? "text-warn-text" : "text-ink-3"}`}>{d.days_open} kun</span>
+                    <span className={`num shrink-0 text-[13px] ${d.days_open > 14 ? "text-warn-text" : "text-ink-3"}`}>{daysShort(d.days_open)}</span>
                   </span>
                   <span className="num text-[15px] font-semibold">{moneyShort(d.remaining)}</span>
                   <Button
@@ -126,16 +127,16 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
                     loading={reminder.busyId === d.id}
                     onClick={() => reminder.open(d)}
                   >
-                    {reminder.sent[d.id] ? "Yuborildi" : "Eslatish"}
+                    {reminder.sent[d.id] ? t("Yuborildi") : t("Eslatish")}
                   </Button>
                 </li>
               ))}
             </ul>
           )}
         </Step>
-        <Step n={2} tone="brand" icon={<Landmark size={18} strokeWidth={1.75} />} title={rec.covers_by_debts ? "Qaytmasa — overdraft" : "Yetmasa — overdraft"} last>
+        <Step n={2} tone="brand" icon={<Landmark size={18} strokeWidth={1.75} />} title={rec.covers_by_debts ? t("Qaytmasa — overdraft") : t("Yetmasa — overdraft")} last>
           <p className="num mt-1 text-[14.5px] text-ink-2">
-            {money(od.amount)} · {od.term_days} kun · ortiqcha {money(od.cost)}
+            {money(od.amount)} · {daysShort(od.term_days)} · {t("ortiqcha")} {money(od.cost)}
           </p>
           {tg ? (
             <button
@@ -143,12 +144,12 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
               disabled={!!activeOverdraft}
               className="mt-3 flex w-full items-center justify-between rounded-el bg-surface-2 px-4 py-3 text-left text-[15px] font-medium active:bg-surface-3 disabled:opacity-50"
             >
-              Shartlarni ko'rish
+              {t("Shartlarni ko'rish")}
               <ChevronRight size={18} className="text-ink-3" />
             </button>
           ) : (
             <Button className="mt-3" variant="primary" onClick={() => flow.setOffer(od)} disabled={!!activeOverdraft}>
-              Shartlarni ko'rish
+              {t("Shartlarni ko'rish")}
             </Button>
           )}
         </Step>
@@ -157,12 +158,12 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
   } else if (rec.kind === "surplus") {
     const dep = rec.deposit;
     body = (
-      <Step n={1} tone="pos" icon={<Sprout size={18} strokeWidth={1.75} />} title="Bo'sh pul ishlasin — omonat" last>
+      <Step n={1} tone="pos" icon={<Sprout size={18} strokeWidth={1.75} />} title={t("Bo'sh pul ishlasin — omonat")} last>
         <p className="num mt-1 text-[14.5px] text-ink-2">
-          {money(dep.amount)} · {dep.term_days} kun · daromad <span className="text-pos-text">+{money(dep.income)}</span>
+          {money(dep.amount)} · {daysShort(dep.term_days)} · {t("daromad")} <span className="text-pos-text">+{money(dep.income)}</span>
         </p>
         <Button className="mt-3" onClick={() => flow.setOffer(dep)}>
-          Shartlarni ko'rish
+          {t("Shartlarni ko'rish")}
         </Button>
       </Step>
     );
@@ -175,27 +176,27 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
       <div className="flex items-start gap-3 rounded-el bg-pos-soft p-4 text-pos-text">
         <ShieldCheck size={22} strokeWidth={1.75} className="shrink-0" />
         <div>
-          <div className="text-[16px] font-semibold">Hammasi joyida</div>
+          <div className="text-[16px] font-semibold">{t("Hammasi joyida")}</div>
           <div className="mt-0.5 text-[14.5px]">
-            {capitalize(untilLabel(rec.horizon, today))} pul yetadi
-            {activeOverdraft ? `. Overdraft ${ddmm(activeOverdraft.date)} da qaytariladi.` : "."}
+            {t("{until} pul yetadi", { until: capitalize(untilLabel(rec.horizon, today)) })}
+            {activeOverdraft ? `. ${t("Overdraft {date} da qaytariladi.", { date: ddmm(activeOverdraft.date) })}` : "."}
           </div>
         </div>
       </div>
       {low && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-el bg-surface-2/70 px-4 py-3 text-[15px]">
-          <span className="text-ink-2">Eng past qoldiq · {weekday(low.date)}</span>
+          <span className="text-ink-2">{t("Eng past qoldiq")} · {weekday(low.date)}</span>
           <span className="num font-semibold">{money(low.balance)}</span>
         </div>
       )}
       {upcoming.length > 0 && (
         <div className="mt-5">
-          <div className="mb-1 text-[13px] text-ink-3">Yaqin to'lovlar</div>
+          <div className="mb-1 text-[13px] text-ink-3">{t("Yaqin to'lovlar")}</div>
           <ul className="divide-y divide-line">
             {upcoming.map((e) => (
               <li key={`${e.id}-${e.date}`} className="flex items-center justify-between gap-3 py-2.5 text-[15px]">
                 <span className="min-w-0 truncate">
-                  <span className="num text-ink-3">{ddmm(e.date)}</span> · {e.title}
+                  <span className="num text-ink-3">{ddmm(e.date)}</span> · {eventTitle(e)}
                 </span>
                 <span className={`num shrink-0 font-medium ${isOutflow(e) ? "" : "text-pos-text"}`}>
                   {isOutflow(e) ? "−" : "+"}
@@ -213,7 +214,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
   return (
     <section aria-labelledby="next-steps">
       <h2 id="next-steps" className="mb-4 text-[18px] font-semibold tracking-tight">
-        Keyingi qadam
+        {t("Keyingi qadam")}
       </h2>
       {body}
       <OfferSheet offer={flow.offer} today={today} busy={flow.busy} onAccept={flow.accept} onDecline={flow.decline} onClose={() => flow.setOffer(null)} />
@@ -251,32 +252,32 @@ export function OfferSheet({
     <Sheet
       open={!!offer}
       onClose={onClose}
-      title={offer?.name}
-      primary={{ label: "Tasdiqlayman", onClick: onAccept, loading: busy }}
-      secondary={{ label: "Bekor", onClick: onDecline, disabled: busy }}
-      footnote="Demo: bank bilan haqiqiy integratsiya keyingi bosqichda"
+      title={offer ? t(offer.name) : undefined}
+      primary={{ label: t("Tasdiqlayman"), onClick: onAccept, loading: busy }}
+      secondary={{ label: t("Bekor"), onClick: onDecline, disabled: busy }}
+      footnote={t("Demo: bank bilan haqiqiy integratsiya keyingi bosqichda")}
     >
       {offer && (
         <>
-          <div className="text-[14px] text-ink-3">{isOd ? "Hisobingizga tushadi" : "Omonatga o'tadi"}</div>
+          <div className="text-[14px] text-ink-3">{isOd ? t("Hisobingizga tushadi") : t("Omonatga o'tadi")}</div>
           <div className="display mt-1 mb-4 text-[34px] font-bold">{money(offer.amount)}</div>
           <div className="divide-y divide-line">
-            <Row label="Muddat" value={`${offer.term_days} kun · ${ddmm(end)} gacha`} />
-            <Row label="Yillik stavka" value={`${Math.round(offer.annual_rate * 100)}%`} />
+            <Row label={t("Muddat")} value={t("{days} · {date} gacha", { days: daysShort(offer.term_days), date: ddmm(end) })} />
+            <Row label={t("Yillik stavka")} value={`${Math.round(offer.annual_rate * 100)}%`} />
             {offer.type === "overdraft" ? (
               <>
-                <Row label="Ortiqcha to'lov" value={money(offer.cost)} />
-                <Row label={`${ddmm(end)} da qaytarasiz`} value={money(offer.amount + offer.cost)} strong />
+                <Row label={t("Ortiqcha to'lov")} value={money(offer.cost)} />
+                <Row label={t("{date} da qaytarasiz", { date: ddmm(end) })} value={money(offer.amount + offer.cost)} strong />
               </>
             ) : (
               <>
-                <Row label="Daromad" value={<span className="text-pos-text">+{money(offer.income)}</span>} />
-                <Row label={`${ddmm(end)} da qaytadi`} value={money(offer.amount + offer.income)} strong />
+                <Row label={t("Daromad")} value={<span className="text-pos-text">+{money(offer.income)}</span>} />
+                <Row label={t("{date} da qaytadi", { date: ddmm(end) })} value={money(offer.amount + offer.income)} strong />
               </>
             )}
           </div>
           <p className={`mt-4 rounded-el p-4 text-[14px] leading-relaxed ${isOd ? "bg-neg-soft text-neg-text" : "bg-surface-2 text-ink-2"}`}>
-            {offer.type === "overdraft" ? offer.risk_text : offer.early_withdrawal}
+            {t(offer.type === "overdraft" ? offer.risk_text : offer.early_withdrawal)}
           </p>
         </>
       )}

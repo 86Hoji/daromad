@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { hasMainButton, useTgMainButton } from "../hooks/useTelegram";
 import { haptic } from "../lib/telegram";
 import { Button } from "./Button";
+import { t } from "../lib/i18n";
 
 export interface SheetAction {
   label: string;
@@ -132,7 +133,7 @@ function SheetBody({
           {title ? <h2 className="text-[20px] leading-tight font-semibold tracking-tight">{title}</h2> : <span />}
           <button
             onClick={onClose}
-            aria-label="Yopish"
+            aria-label={t("Yopish")}
             className="-mt-1 -mr-2 hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-surface-2 hover:text-ink md:inline-flex"
           >
             <X size={18} strokeWidth={1.75} />

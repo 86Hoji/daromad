@@ -4,6 +4,7 @@ import { Loader2, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { haptic } from "../lib/telegram";
+import { t } from "../lib/i18n";
 
 type State = "idle" | "loading" | "playing" | "off";
 
@@ -60,7 +61,7 @@ export function ListenButton({ text, auto = false, className = "" }: { text: str
       type="button"
       onClick={() => (playing ? stop() : play())}
       disabled={state === "loading"}
-      aria-label={playing ? "Ovozni to'xtatish" : "Javobni eshitish"}
+      aria-label={playing ? t("Ovozni to'xtatish") : t("Javobni eshitish")}
       className={`btn-fx inline-flex h-11 items-center gap-2 rounded-full bg-surface-2 pr-4 pl-3 text-[15px] font-medium text-ink hover:bg-surface-3 disabled:opacity-70 ${className}`}
     >
       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-brand-ink">
@@ -73,7 +74,7 @@ export function ListenButton({ text, auto = false, className = "" }: { text: str
           ))}
         </span>
       ) : null}
-      {playing ? "To'xtatish" : "Eshitish"}
+      {playing ? t("To'xtatish") : t("Eshitish")}
     </button>
   );
 }

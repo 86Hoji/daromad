@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { BRAND } from "../lib/brand";
 import { useLenis, useMagnet, useSpotlight } from "../lib/fx";
 import { Logo, ThemeToggle } from "../ui/bits";
+import { LangSwitch, t } from "../lib/i18n";
 import { LiquidBg, setLiquidBoost } from "../ui/Liquid";
 import { HeroScene } from "./HeroScene";
 import { Banks, HowItWorks, Problem, SandboxSection, Trust, WRAP } from "./Sections";
@@ -36,10 +37,10 @@ function Ctas({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col gap-3 sm:flex-row ${className}`}>
       <CtaLink to="/app" primary icon={<Play size={18} strokeWidth={1.9} aria-hidden />}>
-        Demo'ni ochish
+        {t("Demo'ni ochish")}
       </CtaLink>
       <CtaLink href={BOT_URL} icon={<Send size={18} strokeWidth={1.75} aria-hidden />}>
-        Telegram'da ochish
+        {t("Telegram'da ochish")}
       </CtaLink>
     </div>
   );
@@ -50,22 +51,23 @@ function Header() {
   return (
     <header className="fixed inset-x-0 top-3 z-40 px-3 sm:top-4">
       <div className="glass lift-2 mx-auto flex h-14 max-w-[1120px] items-center justify-between gap-3 rounded-full pr-2 pl-5">
-        <Link to="/" aria-label={`${BRAND} — bosh sahifa`} className="rounded-full">
+        <Link to="/" aria-label={`${BRAND} — ${t("bosh sahifa")}`} className="rounded-full">
           <Logo size={26} />
         </Link>
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Sahifa bo'limlari">
+        <nav className="hidden items-center gap-1 md:flex" aria-label={t("Sahifa bo'limlari")}>
           <a href="#qanday" className={link}>
-            Qanday ishlaydi
+            {t("Qanday ishlaydi")}
           </a>
           <a href="#sinov" className={link}>
-            Sinab ko'ring
+            {t("Sinab ko'ring")}
           </a>
           <a href="#banklar" className={link}>
-            Banklar uchun
+            {t("Banklar uchun")}
           </a>
         </nav>
         <div className="flex items-center gap-1.5">
-          <ThemeToggle />
+          <LangSwitch compact />
+          <ThemeToggle className="hidden sm:inline-flex" />
           <Link to="/app" className="btn-fx inline-flex h-10 items-center rounded-full bg-brand px-5 text-[15px] font-medium text-brand-ink hover:bg-brand-hover">
             Demo
           </Link>
@@ -100,20 +102,20 @@ function Hero() {
       <div className={`${WRAP} grid grid-cols-1 items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] lg:gap-14`}>
         <div className="relative z-10">
           <motion.div {...rise(0)} className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13.5px] text-ink-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-pos" aria-hidden /> Kichik va mikro biznes uchun
+            <span className="h-1.5 w-1.5 rounded-full bg-pos" aria-hidden /> {t("Kichik va mikro biznes uchun")}
           </motion.div>
           <motion.h1 {...rise(1)} id="hero-h" className="display mt-6 text-[clamp(40px,4.7vw,74px)] leading-[1] font-bold tracking-[-0.045em]">
-            Gapiring.
-            <span className="mt-1 block bg-gradient-to-br from-ink to-ink-3 bg-clip-text pb-1 text-transparent">Pulingizni oldindan biling.</span>
+            {t("Gapiring.")}
+            <span className="mt-1 block bg-gradient-to-br from-ink to-ink-3 bg-clip-text pb-1 text-transparent">{t("Pulingizni oldindan biling.")}</span>
           </motion.h1>
           <motion.p {...rise(2)} className="mt-7 max-w-[480px] text-[18px] leading-relaxed text-ink-2 sm:text-[19px]">
-            Ovozli moliyaviy yordamchi: savdo, xarajat va qarzlar — ovoz bilan, bo'sh pul — oldindan.
+            {t("Ovozli moliyaviy yordamchi: savdo, xarajat va qarzlar — ovoz bilan, bo'sh pul — oldindan.")}
           </motion.p>
           <motion.div {...rise(3)}>
             <Ctas className="mt-9" />
           </motion.div>
           <motion.p {...rise(4)} className="mt-5 text-[14px] text-ink-3">
-            Ro'yxatdan o'tmasdan · o'zbek tilida · tasdiqlamaguningizcha hech narsa saqlanmaydi
+            {t("Ro'yxatdan o'tmasdan · o'zbek va rus tilida · tasdiqlamaguningizcha hech narsa saqlanmaydi")}
           </motion.p>
         </div>
 
@@ -124,10 +126,10 @@ function Hero() {
           transition={{ type: "spring", stiffness: 70, damping: 18, delay: 0.15 }}
         >
           <Floater className="-top-10 left-6" delay={1.2} depth={1.2}>
-            <span className="text-pos-text">+2 300 000</span>&nbsp;<span className="text-ink-3">sotuv · bugun</span>
+            <span className="text-pos-text">+2 300 000</span>&nbsp;<span className="text-ink-3">{t("sotuv · bugun")}</span>
           </Floater>
           <Floater className="-bottom-12 left-[-36px]" delay={1.8} depth={0.8}>
-            <span className="text-ink-3">Akmal · tovar ·</span>&nbsp;<span className="text-ink">3 mln, payshanba</span>
+            <span className="text-ink-3">{t("Akmal · tovar ·")}</span>&nbsp;<span className="text-ink">{t("3 mln, payshanba")}</span>
           </Floater>
           <div className="glass lift-3 relative z-10 rounded-[32px] p-6 sm:p-9">
             <HeroScene />
@@ -152,16 +154,16 @@ function FinalCta() {
           id="final-h"
           className="display max-w-[980px] bg-gradient-to-b from-ink via-ink to-ink-3/40 bg-clip-text pb-2 text-[clamp(44px,7vw,112px)] leading-[0.98] font-bold tracking-[-0.045em] text-transparent"
         >
-          Ertangi pulni bugun ko'ring.
+          {t("Ertangi pulni bugun ko'ring.")}
         </h2>
-        <p className="mt-6 max-w-[560px] text-[18px] leading-relaxed text-ink-2">Demo biznes tayyor: qarzlar, to'lovlar va payshanbadagi kamomad bilan.</p>
+        <p className="mt-6 max-w-[560px] text-[18px] leading-relaxed text-ink-2">{t("Demo biznes tayyor: qarzlar, to'lovlar va payshanbadagi kamomad bilan.")}</p>
         <Ctas className="mt-10" />
       </div>
       <footer className="relative">
         <div className={`${WRAP} pb-8`}>
           <div className="glass flex flex-col gap-4 rounded-[20px] px-6 py-5 text-[14px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
             <Logo size={24} />
-            <span>Inha FinTech Hackathon 2026 · jamoa: [Jamoa nomi]</span>
+            <span>{t("Inha FinTech Hackathon 2026 · jamoa: [Jamoa nomi]")}</span>
           </div>
         </div>
       </footer>
@@ -179,7 +181,7 @@ export default function Landing() {
         href="#muammo"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-el focus:bg-surface focus:px-4 focus:py-2"
       >
-        Asosiy qismga o'tish
+        {t("Asosiy qismga o'tish")}
       </a>
       <Header />
       <div className="relative z-10">

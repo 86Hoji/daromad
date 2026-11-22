@@ -17,7 +17,8 @@ import {
 } from "recharts";
 import type { FcEvent, Forecast } from "../lib/api";
 import { usePalette, type Palette } from "../lib/colors";
-import { capitalize, ddmm, money, moneyShort, num, weekday } from "../lib/format";
+import { capitalize, ddmm, eventTitle, money, moneyShort, num, weekday } from "../lib/format";
+import { t } from "../lib/i18n";
 
 interface Point {
   date: string;
@@ -41,7 +42,7 @@ export const isOutflow = (e: FcEvent) => OUTFLOW.has(e.type) || e.amount < 0;
 
 export function eventWho(e: FcEvent): string {
   if (e.counterparty && e.counterparty !== "Bank") return e.counterparty;
-  return TYPE_SHORT[e.type] ?? e.title;
+  return TYPE_SHORT[e.type] ? t(TYPE_SHORT[e.type]) : eventTitle(e);
 }
 
 export function eventShort(e: FcEvent): string {
@@ -142,8 +143,8 @@ export function MoneyLine({
   }, [points]);
 
   const minPoint = points.reduce((a, b) => (b.v < a.v ? b : a));
-  const summary = `Pul chizig'i. Bugun ${money(data.cash_now)}. ${
-    minPoint.v < 0 ? `Eng past nuqta ${ddmm(minPoint.date)}: ${money(minPoint.v)}.` : "Keyingi kunlarda minusga tushmaydi."
+  const summary = `${t("Pul chizig'i")}. ${t("Bugun {amount}.", { amount: money(data.cash_now) })} ${
+    minPoint.v < 0 ? t("Eng past nuqta {date}: {amount}.", { date: ddmm(minPoint.date), amount: money(minPoint.v) }) : t("Keyingi kunlarda minusga tushmaydi.")
   }`;
 
   const off = Math.min(1, Math.max(0, (zeroY - plotTop) / (plotBottom - plotTop || 1)));
@@ -211,9 +212,9 @@ export function MoneyLine({
               const x = p.viewBox?.x ?? 0;
               return (
                 <g>
-                  <rect x={x - 26} y={plotTop - (compact ? 20 : 24)} width={52} height={compact ? 18 : 20} rx={10} fill={pal.surface2} />
+                  <rect x={x - 32} y={plotTop - (compact ? 20 : 24)} width={64} height={compact ? 18 : 20} rx={10} fill={pal.surface2} />
                   <text x={x} y={plotTop - (compact ? 7 : 10)} textAnchor="middle" fontSize={compact ? 11 : 12} fontWeight={600} fill={pal.ink}>
-                    Bugun
+                    {t("Bugun")}
                   </text>
                 </g>
               );
@@ -297,7 +298,7 @@ function Pins({
 function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload as Point;
-  const label = p.kind === "today" ? "bugun" : p.kind === "plan" ? "prognoz" : "fakt";
+  const label = t(p.kind === "today" ? "bugun" : p.kind === "plan" ? "prognoz" : "fakt");
   const spread = p.kind === "plan" && p.band && p.band[1] - p.band[0] >= 1000;
   return (
     <div className="min-w-[200px] rounded-el bg-surface px-4 py-3 text-[13.5px] shadow-float">
@@ -307,7 +308,7 @@ function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
       <div className={`display text-[18px] font-semibold ${p.v < 0 ? "text-neg-text" : "text-ink"}`}>{money(p.v)}</div>
       {spread && p.band && (
         <div className="num mt-0.5 text-[12.5px] text-ink-3">
-          taxminan {moneyShort(p.band[0])} — {moneyShort(p.band[1])}
+          {t("taxminan")} {moneyShort(p.band[0])} — {moneyShort(p.band[1])}
         </div>
       )}
       {p.events.map((e) => (
@@ -319,7 +320,7 @@ function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
           </span>
         </div>
       ))}
-      {p.kind === "plan" && <div className="mt-1.5 text-[11.5px] text-ink-3">To'lovlardan keyin, ertalabki qoldiq</div>}
+      {p.kind === "plan" && <div className="mt-1.5 text-[11.5px] text-ink-3">{t("To'lovlardan keyin, ertalabki qoldiq")}</div>}
     </div>
   );
 }
@@ -327,7 +328,7 @@ function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
 /** Скелетон графика — мотив «голос»: пульсирующие полосы, которые станут линией. */
 export function ChartSkeleton({ height = 340 }: { height?: number }) {
   return (
-    <div className="flex w-full items-end justify-center gap-[5px] px-8" style={{ height }} aria-label="Grafik yuklanmoqda" role="status">
+    <div className="flex w-full items-end justify-center gap-[5px] px-8" style={{ height }} aria-label={t("Grafik yuklanmoqda")} role="status">
       {Array.from({ length: 36 }).map((_, i) => (
         <span
           key={i}

@@ -1,4 +1,5 @@
 // Клиент API Flowcast. В Telegram шлёт X-Telegram-Init-Data, в браузере — без него (DEV_SHOP_ID).
+import { getLang, t } from "./i18n";
 import { initData } from "./telegram";
 
 export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
@@ -17,12 +18,13 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (initData) headers.set("X-Telegram-Init-Data", initData);
+  headers.set("Accept-Language", getLang()); // язык ответов AI и текстов ошибок
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError(0, "Server bilan aloqa yo'q");
+    throw new ApiError(0, t("Server bilan aloqa yo'q"));
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -307,6 +309,7 @@ export const api = {
   tts: async (text: string): Promise<Blob> => {
     const headers = new Headers({ "Content-Type": "application/json" });
     if (initData) headers.set("X-Telegram-Init-Data", initData);
+  headers.set("Accept-Language", getLang()); // язык ответов AI и текстов ошибок
     const res = await fetch(`${API_URL}/api/tts`, { method: "POST", headers, body: JSON.stringify({ text, format: "wav" }) });
     if (!res.ok) throw new ApiError(res.status, res.statusText);
     return res.blob();

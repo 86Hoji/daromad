@@ -177,6 +177,15 @@ def init_db() -> None:
             conn.execute("INSERT INTO cash_flows SELECT * FROM cash_flows_old")
             conn.execute("DROP TABLE cash_flows_old")
         conn.executescript(CASH_FLOWS_SQL + CASH_FLOWS_INDEX)
+        _add_columns(conn, "shops", {"lang": "TEXT", "nudged_on": "TEXT"})
+
+
+def _add_columns(conn, table: str, cols: dict[str, str]) -> None:
+    """Мягкая миграция: добавить недостающие колонки (старые базы)."""
+    have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    for name, decl in cols.items():
+        if name not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def query(sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:
@@ -217,6 +226,11 @@ def get_shop(shop_id: int) -> dict | None:
 
 def get_shop_by_tg(tg_user_id: int) -> dict | None:
     return query_one("SELECT * FROM shops WHERE tg_user_id = ?", (tg_user_id,))
+
+
+def set_shop_lang(shop_id: int, lang: str) -> None:
+    """Язык, на котором владелец общается с ботом (uz/ru) — для ответов и утренних сообщений."""
+    execute("UPDATE shops SET lang=? WHERE id=?", (lang, shop_id))
 
 
 def create_shop(tg_user_id: int | None, name: str, owner_name: str | None, opening_cash: int) -> int:

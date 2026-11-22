@@ -2,10 +2,11 @@
 import { ArrowDown, ArrowUp, Check, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DebtRow } from "../lib/api";
-import { money, moneyShort } from "../lib/format";
+import { daysShort, money, moneyShort } from "../lib/format";
 import { Button } from "../ui/Button";
 import { Chip } from "../ui/bits";
 import { useReminder } from "./Reminder";
+import { t } from "../lib/i18n";
 
 export type DebtSort = "remaining" | "days_open" | "person_name";
 
@@ -38,8 +39,8 @@ export function useSortedDebts(debts: DebtRow[] | undefined, initial: DebtSort =
 }
 
 function Consent({ d }: { d: DebtRow }) {
-  if (!d.phone) return <span className="text-ink-3">Telefon yo'q</span>;
-  return d.sms_consent ? <Chip tone="pos">SMS roziligi bor</Chip> : <Chip>Rozilik yo'q</Chip>;
+  if (!d.phone) return <span className="text-ink-3">{t("Telefon yo'q")}</span>;
+  return d.sms_consent ? <Chip tone="pos">{t("SMS roziligi bor")}</Chip> : <Chip>{t("Rozilik yo'q")}</Chip>;
 }
 
 function SortHead({ label, k, s, className = "" }: { label: string; k: DebtSort; s: ReturnType<typeof useSortedDebts>; className?: string }) {
@@ -58,18 +59,18 @@ function SortHead({ label, k, s, className = "" }: { label: string; k: DebtSort;
 export function DebtTable({ debts }: { debts: DebtRow[] }) {
   const s = useSortedDebts(debts);
   const reminder = useReminder();
-  if (s.open.length === 0) return <p className="py-10 text-center text-ink-2">Hozir sizga hech kim qarz emas.</p>;
+  if (s.open.length === 0) return <p className="py-10 text-center text-ink-2">{t("Hozir sizga hech kim qarz emas.")}</p>;
   return (
     <div className="-mx-2 overflow-x-auto">
       <table className="w-full min-w-[640px] border-separate border-spacing-0 text-left text-[15px]">
         <thead className="text-[13px] text-ink-3">
           <tr>
-            <SortHead label="Mijoz" k="person_name" s={s} className="pl-2" />
-            <SortHead label="Muddat" k="days_open" s={s} />
+            <SortHead label={t("Mijoz")} k="person_name" s={s} className="pl-2" />
+            <SortHead label={t("Muddat")} k="days_open" s={s} />
             <th scope="col" className="py-3 font-medium">
-              Aloqa
+              {t("Aloqa")}
             </th>
-            <SortHead label="Summa" k="remaining" s={s} className="text-right" />
+            <SortHead label={t("Summa")} k="remaining" s={s} className="text-right" />
             <th scope="col" className="w-[132px] py-3 pr-2" />
           </tr>
         </thead>
@@ -83,7 +84,7 @@ export function DebtTable({ debts }: { debts: DebtRow[] }) {
                 </span>
               </td>
               <td className="border-t border-line py-3.5">
-                <Chip tone={ageTone(d.days_open)}>{d.days_open} kun</Chip>
+                <Chip tone={ageTone(d.days_open)}>{daysShort(d.days_open)}</Chip>
               </td>
               <td className="border-t border-line py-3.5 text-[14px]">
                 <span className="flex flex-wrap items-center gap-2">
@@ -100,7 +101,7 @@ export function DebtTable({ debts }: { debts: DebtRow[] }) {
                   loading={reminder.busyId === d.id}
                   onClick={() => reminder.open(d)}
                 >
-                  {reminder.sent[d.id] ? "Yuborildi" : "Eslatish"}
+                  {reminder.sent[d.id] ? t("Yuborildi") : t("Eslatish")}
                 </Button>
               </td>
             </tr>
@@ -115,7 +116,7 @@ export function DebtTable({ debts }: { debts: DebtRow[] }) {
 export function DebtList({ debts, limit, onOpen }: { debts: DebtRow[]; limit?: number; onOpen?: (d: DebtRow) => void }) {
   const reminder = useReminder();
   const list = debts.filter((d) => d.status === "open").sort((a, b) => b.remaining - a.remaining).slice(0, limit);
-  if (list.length === 0) return <p className="py-6 text-center text-ink-2">Hozir sizga hech kim qarz emas.</p>;
+  if (list.length === 0) return <p className="py-6 text-center text-ink-2">{t("Hozir sizga hech kim qarz emas.")}</p>;
   return (
     <ul className="divide-y divide-line">
       {list.map((d) => (
@@ -128,7 +129,7 @@ export function DebtList({ debts, limit, onOpen }: { debts: DebtRow[]; limit?: n
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15.5px] font-medium">{d.person_name}</span>
               <span className={`num text-[13px] ${d.days_open > 14 ? "text-warn-text" : "text-ink-3"}`}>
-                {d.days_open} kun{reminder.sent[d.id] ? " · eslatildi" : ""}
+                {daysShort(d.days_open)}{reminder.sent[d.id] ? ` · ${t("eslatildi")}` : ""}
               </span>
             </span>
             <span className="num text-[15.5px] font-semibold">{moneyShort(d.remaining)}</span>

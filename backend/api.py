@@ -21,6 +21,7 @@ import config
 import db
 import logic
 import pipeline
+import texts
 import tts
 
 router = APIRouter(prefix="/api")
@@ -193,16 +194,21 @@ class IdsIn(BaseModel):
     ids: list[int] = Field(min_length=1)
 
 
-async def _run(shop: dict, **kwargs) -> dict:
+def ui_lang(accept_language: str | None = Header(None)) -> str:
+    """Язык интерфейса (фронт шлёт Accept-Language: ru|uz|en): ru -> русский, остальное -> узбекский."""
+    return texts.norm_lang(accept_language)
+
+
+async def _run(shop: dict, lang: str, **kwargs) -> dict:
     try:
-        return await pipeline.process(shop["id"], **kwargs)
+        return await pipeline.process(shop["id"], lang=lang, **kwargs)
     except ai.AIUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=texts._(str(exc), lang))
 
 
 @router.post("/text")
-async def post_text(body: TextIn, shop: dict = Depends(current_shop)) -> dict:
-    return await _run(shop, text=body.text, source="text")
+async def post_text(body: TextIn, shop: dict = Depends(current_shop), lang: str = Depends(ui_lang)) -> dict:
+    return await _run(shop, lang, text=body.text, source="text")
 
 
 class TtsIn(BaseModel):
@@ -216,7 +222,7 @@ async def post_tts(body: TtsIn, shop: dict = Depends(current_shop)) -> Response:
     503 — TTS недоступен (фронт просто прячет кнопку)."""
     data = await tts.synthesize(tts.for_voice(body.text), fmt=body.format)
     if not data:
-        raise HTTPException(status_code=503, detail="Ovozli javob hozir mavjud emas")
+        raise HTTPException(status_code=503, detail="TTS unavailable")
     return Response(content=data, media_type=tts.audio_mime(data), headers={"Cache-Control": "private, max-age=3600"})
 
 
@@ -236,21 +242,23 @@ def demo_reset(shop: dict = Depends(current_shop)) -> dict:
 
 
 @router.post("/voice")
-async def post_voice(audio: UploadFile = File(...), shop: dict = Depends(current_shop)) -> dict:
+async def post_voice(audio: UploadFile = File(...), shop: dict = Depends(current_shop),
+                     lang: str = Depends(ui_lang)) -> dict:
     data = await audio.read()
     if not data:
-        raise HTTPException(status_code=400, detail="Bo'sh audio fayl")
+        raise HTTPException(status_code=400, detail=texts._("Bo'sh audio fayl", lang))
     if len(data) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Audio juda katta (20 MB gacha)")
+        raise HTTPException(status_code=413, detail=texts._("Audio juda katta (20 MB gacha)", lang))
     mime = (audio.content_type or "audio/ogg").split(";")[0]
-    return await _run(shop, audio=data, mime_type=mime, source="voice")
+    return await _run(shop, lang, audio=data, mime_type=mime, source="voice")
 
 
 @router.post("/entries/confirm")
-def confirm(body: IdsIn, shop: dict = Depends(current_shop)) -> dict:
+def confirm(body: IdsIn, shop: dict = Depends(current_shop), lang: str = Depends(ui_lang)) -> dict:
     res = pipeline.confirm(shop["id"], ids=body.ids)
+    res["errors"] = texts.tr_list(res["errors"], lang)
     if not res["confirmed"] and not res["errors"]:
-        raise HTTPException(status_code=404, detail="Bunday kutilayotgan yozuvlar yo'q")
+        raise HTTPException(status_code=404, detail=texts._("Bunday kutilayotgan yozuvlar yo'q", lang))
     res["recommendation"] = rounded(logic.recommendation(shop["id"]))
     return res
 

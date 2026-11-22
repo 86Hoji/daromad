@@ -9,10 +9,13 @@ import { NextSteps } from "../features/NextSteps";
 import { AuditList, CategoryBars, Totals, TrustScale } from "../features/Report";
 import { useFeed, useReport } from "../hooks/useData";
 import { useLive } from "../lib/live";
-import { TRUST_LABEL, ddmm, money } from "../lib/format";
+import { currency, daysShort, ddmm, isConfirmed, money, ruPlural } from "../lib/format";
+
+const clients = (n: number) => pick({ uz: `${n} ta mijoz`, ru: `${n} ${ruPlural(n, ["клиент", "клиента", "клиентов"])}`, en: `${n} ${n === 1 ? "customer" : "customers"}` });
 import { AnimatedNumber } from "../ui/AnimatedNumber";
 import { Chip, ErrorState, Segmented, Skeleton } from "../ui/bits";
 import { Rise } from "../ui/Rise";
+import { pick, t } from "../lib/i18n";
 
 function PageTitle({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
   return (
@@ -47,7 +50,7 @@ function TrustLine({ share }: { share: Record<string, number> }) {
         <span className="flex-1 rounded-full bg-surface-3" />
       </span>
       <span className="text-[14px] text-ink-2">
-        <span className="num font-semibold text-ink">{ok}%</span> ma'lumot bank orqali tasdiqlangan · AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz
+        <span className="num font-semibold text-ink">{ok}%</span> {t("ma'lumot bank orqali tasdiqlangan · AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz")}
       </span>
     </Link>
   );
@@ -77,7 +80,7 @@ export function AppHome() {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:gap-7">
       <Rise i={0} as="section" className="glass lift-2 flex flex-col p-7 xl:p-8" >
-        <h2 className="sr-only">Bo'sh pul</h2>
+        <h2 className="sr-only">{t("Bo'sh pul")}</h2>
         <FreeMoney summary={summary} rec={rec} today={today} roll />
         <div className="mt-8">
           <Formula summary={summary} />
@@ -96,8 +99,8 @@ export function AppHome() {
       </Rise>
 
       <Rise i={3} as="section" id="feed-panel" className="glass lift-1 p-6 xl:p-7">
-        <PanelTitle right={<span className="text-[13px] text-ink-3">yangilari tepada</span>}>
-          <span id="feed-title">Jonli lenta</span>
+        <PanelTitle right={<span className="text-[13px] text-ink-3">{t("yangilari tepada")}</span>}>
+          <span id="feed-title">{t("Jonli lenta")}</span>
         </PanelTitle>
         <LiveFeed items={feed.items} fresh={feed.fresh} today={today} limit={6} />
       </Rise>
@@ -106,15 +109,15 @@ export function AppHome() {
         <PanelTitle
           right={
             <Link to="/app/qarzlar" className="rounded-md text-[14px] font-medium text-brand-text hover:underline">
-              Barchasi
+              {t("Barchasi")}
             </Link>
           }
         >
-          <span id="debts-title">Qarzlar</span>
+          <span id="debts-title">{t("Qarzlar")}</span>
         </PanelTitle>
         <div className="mb-2 flex items-baseline gap-2">
           <AnimatedNumber value={summary.total_receivable} roll className="display text-[30px] font-semibold text-warn-text" />
-          <span className="text-[14px] text-ink-3">so'm · {debts?.open_count ?? summary.top_debtors.length} ta mijoz</span>
+          <span className="text-[14px] text-ink-3">{currency()} · {clients(debts?.open_count ?? summary.top_debtors.length)}</span>
         </div>
         {debts ? <DebtList debts={debts.debts} limit={5} /> : <Skeleton className="h-40" />}
       </Rise>
@@ -131,10 +134,10 @@ export function AppDebts() {
   const oldest = Math.max(0, ...open.map((d) => d.days_open));
   return (
     <>
-      <PageTitle title="Qarzlar" sub={`${debts.open_count} ta mijoz · eng uzog'i ${oldest} kun`} />
+      <PageTitle title={t("Qarzlar")} sub={`${clients(debts.open_count)} · ${t("eng uzog'i {n}", { n: daysShort(oldest) })}`} />
       <div className="mb-6 flex items-baseline gap-3">
         <AnimatedNumber value={debts.total_receivable} className="display text-[48px] leading-none font-bold text-warn-text xl:text-[64px]" />
-        <span className="text-[18px] text-ink-3">so'm sizga qarz</span>
+        <span className="text-[18px] text-ink-3">{currency()} · {t("sizga qarz")}</span>
       </div>
       <section className="glass p-4 sm:p-6">
         <DebtTable debts={debts.debts} />
@@ -142,7 +145,7 @@ export function AppDebts() {
       {closed.length > 0 && (
         <div className="mt-6">
           <button onClick={() => setShowClosed((v) => !v)} className="rounded-md text-[15px] font-medium text-ink-2 hover:text-ink" aria-expanded={showClosed}>
-            {showClosed ? "Yopilganlarni yashirish" : `Yopilgan qarzlar (${closed.length})`}
+            {showClosed ? t("Yopilganlarni yashirish") : t("Yopilgan qarzlar ({n})", { n: closed.length })}
           </button>
           {showClosed && (
             <ul className="glass mt-3 divide-y divide-line px-6">
@@ -150,10 +153,10 @@ export function AppDebts() {
                 <li key={d.id} className="flex justify-between py-3 text-[15px] text-ink-2">
                   <span>{d.person_name}</span>
                   <span className="num">
-                    {money(d.amount)} · <span className="text-pos-text">qaytdi</span>
-                    {d.close_source && TRUST_LABEL[d.close_source] === "tasdiqlangan" && (
+                    {money(d.amount)} · <span className="text-pos-text">{t("qaytdi")}</span>
+                    {isConfirmed(d.close_source) && (
                       <Chip tone="pos" className="ml-2">
-                        {d.close_source === "link" ? "havola orqali · " : ""}tasdiqlangan
+                        {d.close_source === "link" ? `${t("havola orqali")} · ` : ""}{t("tasdiqlangan")}
                       </Chip>
                     )}
                   </span>
@@ -174,16 +177,16 @@ export function AppReport() {
   return (
     <>
       <PageTitle
-        title="Hisobot"
+        title={t("Hisobot")}
         sub={entries ? `${ddmm(entries.from)} — ${ddmm(entries.to)}` : undefined}
         right={
           <Segmented
-            label="Davr"
+            label={t("Davr")}
             value={period}
             onChange={setPeriod}
             options={[
-              { value: "week", label: "Hafta" },
-              { value: "month", label: "Oy" },
+              { value: "week", label: t("Hafta") },
+              { value: "month", label: t("Oy") },
             ]}
           />
         }
@@ -200,13 +203,13 @@ export function AppReport() {
             <Totals entries={entries} />
           </section>
           <section className="glass p-6 xl:p-7">
-            <PanelTitle>Xarajatlar toifalar bo'yicha</PanelTitle>
+            <PanelTitle>{t("Xarajatlar toifalar bo'yicha")}</PanelTitle>
             <CategoryBars data={entries.by_category.expense} />
           </section>
           <section className="glass p-6 xl:p-7">
-            <PanelTitle>Ma'lumot ishonchliligi</PanelTitle>
+            <PanelTitle>{t("Ma'lumot ishonchliligi")}</PanelTitle>
             <TrustScale share={summary.trust_share} />
-            <p className="mt-5 text-[14px] text-ink-3">AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz. Bank orqali o'tgan yozuvlar — tasdiqlangan.</p>
+            <p className="mt-5 text-[14px] text-ink-3">{t("AI tushunadi, kod hisoblaydi, siz tasdiqlaysiz. Bank orqali o'tgan yozuvlar — tasdiqlangan.")}</p>
           </section>
         </div>
       )}
@@ -220,12 +223,12 @@ export function AppJournal() {
   return (
     <>
       <PageTitle
-        title="Jurnal"
-        sub="Har bir harakat: kim, qachon, nima"
+        title={t("Jurnal")}
+        sub={t("Har bir harakat: kim, qachon, nima")}
         right={
           <label className="flex cursor-pointer items-center gap-2.5 text-[14px] text-ink-2">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
-            AI va bekor qilinganlarni ko'rsatish
+            {t("AI va bekor qilinganlarni ko'rsatish")}
           </label>
         }
       />

@@ -9,16 +9,17 @@ import { money } from "../lib/format";
 import { haptic } from "../lib/telegram";
 import { Button } from "../ui/Button";
 import { Chip, Logo, Skeleton } from "../ui/bits";
+import { LangSwitch, t } from "../lib/i18n";
 
 const DEMO: PayInfo = { business_name: "Dilshod Biznes", person_name: "Alisher", amount: 450_000, demo: true };
 
 function normalize(raw: Record<string, unknown>): PayInfo {
-  const pick = (...keys: string[]) => keys.map((k) => raw[k]).find((v) => v !== undefined && v !== null);
+  const get = (...keys: string[]) => keys.map((k) => raw[k]).find((v) => v !== undefined && v !== null);
   return {
-    business_name: String(pick("business_name", "shop_name", "shop", "business") ?? "Biznes"),
-    person_name: String(pick("person_name", "debtor", "name") ?? ""),
-    amount: Number(pick("amount", "remaining", "sum") ?? 0),
-    status: pick("status") as string | undefined,
+    business_name: String(get("business_name", "shop_name", "shop", "business") ?? "Biznes"),
+    person_name: String(get("person_name", "debtor", "name") ?? ""),
+    amount: Number(get("amount", "remaining", "sum") ?? 0),
+    status: get("status") as string | undefined,
   };
 }
 
@@ -80,8 +81,11 @@ export function Pay() {
       <div className="w-full max-w-[420px]">
         <div className="mb-6 flex items-center justify-between px-1">
           <Logo size={26} />
-          <span className="flex items-center gap-1.5 text-[13px] text-ink-3">
-            <LockKeyhole size={14} strokeWidth={1.75} /> Xavfsiz to'lov
+          <span className="flex items-center gap-3">
+            <span className="hidden items-center gap-1.5 text-[13px] text-ink-3 min-[380px]:flex">
+              <LockKeyhole size={14} strokeWidth={1.75} /> {t("Xavfsiz to'lov")}
+            </span>
+            <LangSwitch compact />
           </span>
         </div>
 
@@ -96,8 +100,8 @@ export function Pay() {
 
           {state === "error" && (
             <div className="px-6 py-12 text-center">
-              <div className="mb-1 text-[18px] font-semibold">{ERRORS[code ?? ""]?.[0] ?? ERRORS.default[0]}</div>
-              <p className="text-[15px] text-ink-2">{ERRORS[code ?? ""]?.[1] ?? ERRORS.default[1]}</p>
+              <div className="mb-1 text-[18px] font-semibold">{t(ERRORS[code ?? ""]?.[0] ?? ERRORS.default[0])}</div>
+              <p className="text-[15px] text-ink-2">{t(ERRORS[code ?? ""]?.[1] ?? ERRORS.default[1])}</p>
             </div>
           )}
 
@@ -106,12 +110,12 @@ export function Pay() {
               <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-pos-soft text-pos-text">
                 <Check size={30} strokeWidth={2} />
               </div>
-              <div className="display text-[24px] font-semibold">To'landi</div>
+              <div className="display text-[24px] font-semibold">{t("To'landi")}</div>
               <p className="num mt-2 text-[15px] text-ink-2">
                 {money(info.amount)} · {info.business_name}
               </p>
-              <p className="mt-6 text-[14px] text-ink-3">Rahmat! Biznes egasiga xabar yuborildi.</p>
-              {info.demo && <Chip className="mt-4">demo</Chip>}
+              <p className="mt-6 text-[14px] text-ink-3">{t("Rahmat! Biznes egasiga xabar yuborildi.")}</p>
+              {info.demo && <Chip className="mt-4">{t("demo")}</Chip>}
             </motion.div>
           )}
 
@@ -119,19 +123,19 @@ export function Pay() {
             <>
               <div className="bg-surface-2/60 px-6 pt-6 pb-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] text-ink-3">Qabul qiluvchi</span>
-                  {info.demo && <Chip>demo</Chip>}
+                  <span className="text-[13px] text-ink-3">{t("Qabul qiluvchi")}</span>
+                  {info.demo && <Chip>{t("demo")}</Chip>}
                 </div>
                 <div className="mt-1 text-[18px] font-semibold">{info.business_name}</div>
               </div>
               <div className="px-6 py-6">
-                <div className="text-[13px] text-ink-3">To'lov summasi</div>
+                <div className="text-[13px] text-ink-3">{t("To'lov summasi")}</div>
                 <div className="display mt-1 text-[38px] leading-tight font-bold">{money(info.amount)}</div>
                 <dl className="mt-5 divide-y divide-line text-[15px]">
                   {[
-                    ["To'lovchi", info.person_name],
-                    ["Maqsad", "Qarzni qaytarish"],
-                    ["Komissiya", "0 so'm"],
+                    [t("To'lovchi"), info.person_name],
+                    [t("Maqsad"), t("Qarzni qaytarish")],
+                    [t("Komissiya"), money(0)],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between py-3">
                       <dt className="text-ink-2">{k}</dt>
@@ -140,13 +144,13 @@ export function Pay() {
                   ))}
                 </dl>
                 <Button size="lg" className="mt-6 w-full" onClick={pay} loading={state === "paying"}>
-                  To'lash · {money(info.amount)}
+                  {t("To'lash")} · {money(info.amount)}
                 </Button>
               </div>
             </>
           )}
         </div>
-        <p className="mt-4 text-center text-[13px] text-ink-3">To'lov tasdiqlangach, qarz avtomatik yopiladi.</p>
+        <p className="mt-4 text-center text-[13px] text-ink-3">{t("To'lov tasdiqlangach, qarz avtomatik yopiladi.")}</p>
       </div>
     </div>
   );

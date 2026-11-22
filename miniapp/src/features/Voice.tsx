@@ -2,6 +2,7 @@
 import { Loader2, Mic, Square } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { VoiceInput } from "../hooks/useVoiceInput";
+import { t } from "../lib/i18n";
 
 /** Полосы волны по реальной громкости (AnalyserNode). */
 export function LiveWave({ levels, className = "", color = "currentColor" }: { levels: number[]; className?: string; color?: string }) {
@@ -22,7 +23,7 @@ export function MicButton({ v, size = 64, className = "" }: { v: VoiceInput; siz
       type="button"
       onClick={v.toggleMic}
       disabled={v.busy !== null && !v.recording}
-      aria-label={v.recording ? "Yozishni to'xtatish va yuborish" : "Ovoz yozish"}
+      aria-label={v.recording ? t("Yozishni to'xtatish va yuborish") : t("Ovoz yozish")}
       aria-pressed={v.recording}
       className={`relative inline-flex shrink-0 items-center justify-center rounded-full shadow-float transition-colors duration-150 active:scale-95 disabled:opacity-60 ${
         v.recording ? "bg-neg text-white" : "bg-brand text-brand-ink hover:bg-brand-hover"

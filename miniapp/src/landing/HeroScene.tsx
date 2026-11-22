@@ -6,6 +6,7 @@ import { Check, Mic, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Odometer } from "../ui/Odometer";
+import { t } from "../lib/i18n";
 
 const W = 560;
 const H = 260;
@@ -29,7 +30,7 @@ const PATH_AFTER = `${stepPath(DIP + 1, YS.length - 1)} H${END_X}`;
 const DIP_X = x(DIP) + STEP / 2;
 
 export const WAVE = [0.2, 0.45, 0.3, 0.7, 0.5, 0.9, 0.6, 0.35, 0.8, 0.55, 0.3, 0.65, 0.4, 0.85, 0.5, 0.25, 0.6, 0.4, 0.2, 0.5];
-const PHRASE = "Bugun 2 million 300 ming sotdim…";
+const PHRASE_KEY = "Bugun naqdga 2 million 300 ming sotdim…";
 
 // таймлайн (мс): 0 пузырь · 1 печать · 2 линия · 3 провал · 4 карточка · 5 рост · 6 idle
 const T = [200, 700, 2500, 3300, 4300, 5000, 6300];
@@ -59,6 +60,7 @@ function useTyped(text: string, on: boolean, done: boolean) {
 const spring = { type: "spring" as const, stiffness: 180, damping: 18 };
 
 export function HeroScene() {
+  const PHRASE = t(PHRASE_KEY);
   const reduce = !!useReducedMotion();
   const [run, setRun] = useState(0);
   const s = useTimeline(run, reduce);
@@ -70,7 +72,7 @@ export function HeroScene() {
     <div
       className="relative w-full"
       role="img"
-      aria-label="Ovozli xabar pul chizig'iga aylanadi: payshanba kuni 350 ming yetmaydi, qarzlar qaytsa bo'sh pul 550 ming plyusga chiqadi"
+      aria-label={t("Ovozli xabar pul chizig'iga aylanadi: payshanba kuni 350 ming yetmaydi, qarzlar qaytsa bo'sh pul 550 ming plyusga chiqadi")}
     >
       {/* верх: пузырь голосового + цифра */}
       <div className="flex flex-wrap items-start justify-between gap-4 pr-9 sm:pr-0" aria-hidden>
@@ -102,7 +104,7 @@ export function HeroScene() {
         </motion.div>
 
         <motion.div className="text-left" initial={false} animate={s >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }} transition={{ duration: 0.5 }}>
-          <div className="text-[13px] text-ink-3">Bo'sh pul · payshanbagacha</div>
+          <div className="text-[13px] text-ink-3">{t("Bo'sh pul")} · {t("payshanbagacha")}</div>
           <div className={`display mt-1 text-[clamp(26px,3vw,38px)] leading-none font-bold transition-colors duration-700 ${value < 0 ? "text-neg-text" : "text-pos-text"}`}>
             <Odometer value={value} prefix={value > 0 ? "+" : ""} />
           </div>
@@ -177,7 +179,7 @@ export function HeroScene() {
               )}
               <circle cx={DIP_X} cy={YS[DIP]} r={6} fill="var(--surface)" stroke="var(--neg)" strokeWidth={3} />
               <text x={x(DIP - 1) - 2} y={YS[DIP] + 6} textAnchor="end" fontFamily="var(--font-display)" fontWeight={600} fontSize={16} fill="var(--neg-text)">
-                Payshanba: −350 000
+                {t("Payshanba")}: −350 000
               </text>
             </motion.g>
           )}
@@ -206,8 +208,8 @@ export function HeroScene() {
           <Check size={19} strokeWidth={2.2} />
         </span>
         <span>
-          <span className="block text-[16px] font-semibold text-ink">Qarzlar yopadi</span>
-          <span className="block text-[13px] text-ink-3">3 mijoz · 900 ming</span>
+          <span className="block text-[16px] font-semibold text-ink">{t("Qarzlar yopadi")}</span>
+          <span className="block text-[13px] text-ink-3">{t("3 mijoz · 900 ming")}</span>
         </span>
       </motion.div>
 
@@ -220,8 +222,8 @@ export function HeroScene() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setRun((r) => r + 1)}
-            aria-label="Animatsiyani qayta ko'rsatish"
-            title="Qayta ko'rsatish"
+            aria-label={t("Animatsiyani qayta ko'rsatish")}
+            title={t("Qayta ko'rsatish")}
             className="glass btn-fx absolute -top-3 -right-3 flex h-10 w-10 items-center justify-center rounded-full text-ink-2 hover:text-ink sm:-top-6 sm:-right-6"
           >
             <RotateCcw size={17} strokeWidth={1.9} />

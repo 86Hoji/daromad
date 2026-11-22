@@ -5,6 +5,7 @@ import { api, ApiError, type ProcessResult } from "../lib/api";
 import { micSupported, startRecording, type Recording } from "../lib/recorder";
 import { haptic, inTelegram } from "../lib/telegram";
 import { toast } from "../ui/Toast";
+import { t } from "../lib/i18n";
 
 const WAVE_LEN = 28;
 
@@ -38,11 +39,11 @@ export function useVoiceInput() {
       setResult(r);
       if (kind === "text") setText("");
       if (r.intent === "record" && r.drafts.length === 0 && r.errors.length === 0) {
-        toast("Hech narsa topilmadi — boshqacha aytib ko'ring", "info");
+        toast(t("Hech narsa topilmadi — boshqacha aytib ko'ring"), "info");
       }
     } catch (e) {
       haptic("error");
-      toast(e instanceof ApiError ? e.message : "Xatolik yuz berdi", "neg");
+      toast(e instanceof ApiError ? e.message : t("Xatolik yuz berdi"), "neg");
     } finally {
       setBusy(null);
     }
@@ -60,8 +61,8 @@ export function useVoiceInput() {
   const micHint = () =>
     setHint(
       inTelegram
-        ? "Mikrofon bu yerda ishlamayapti — ovozli xabarni botga yuboring."
-        : "Mikrofonga ruxsat bering yoki matn bilan yozing. Ovozli xabarni botga ham yuborish mumkin.",
+        ? t("Mikrofon bu yerda ishlamayapti — ovozli xabarni botga yuboring.")
+        : t("Mikrofonga ruxsat bering yoki matn bilan yozing. Ovozli xabarni botga ham yuborish mumkin."),
     );
 
   const stop = useCallback(async () => {

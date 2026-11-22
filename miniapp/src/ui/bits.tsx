@@ -3,6 +3,7 @@ import { BRAND } from "../lib/brand";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getThemePref, setThemePref, type ThemePref } from "../lib/telegram";
+import { getLang, t } from "../lib/i18n";
 
 export type Tone = "neutral" | "pos" | "neg" | "warn" | "brand";
 
@@ -85,6 +86,7 @@ export function Logo({ className = "", size = 28, light = false }: { className?:
 const THEME_NEXT: Record<ThemePref, ThemePref> = { system: "light", light: "dark", dark: "system" };
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
 const THEME_LABEL = { system: "Tizim mavzusi", light: "Yorug' mavzu", dark: "Qorong'i mavzu" };
+const themeLabel = (p: ThemePref) => t(THEME_LABEL[p]);
 
 export function ThemeToggle({ className = "", withLabel = false }: { className?: string; withLabel?: boolean }) {
   const [pref, setPref] = useState<ThemePref>(getThemePref);
@@ -93,42 +95,42 @@ export function ThemeToggle({ className = "", withLabel = false }: { className?:
   return (
     <button
       onClick={() => setPref(THEME_NEXT[pref])}
-      aria-label={`${THEME_LABEL[pref]} — almashtirish`}
-      title={THEME_LABEL[pref]}
+      aria-label={t("{theme} — almashtirish", { theme: themeLabel(pref) })}
+      title={themeLabel(pref)}
       className={`inline-flex h-10 items-center gap-2 rounded-el px-2.5 text-[14px] text-ink-3 transition hover:bg-surface-2 hover:text-ink ${className}`}
     >
       <Icon size={18} strokeWidth={1.75} />
-      {withLabel && <span>{THEME_LABEL[pref]}</span>}
+      {withLabel && <span>{themeLabel(pref)}</span>}
     </button>
   );
 }
 
 /** Точка «jonli» + время последнего обновления. */
 export function LiveDot({ at, error }: { at: Date | null; error?: string | null }) {
-  const t = at ? at.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+  const time = at ? at.toLocaleTimeString(getLang() === "en" ? "en-GB" : getLang() === "ru" ? "ru-RU" : "uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
   return (
     <span className="inline-flex items-center gap-2 text-[13px] text-ink-3" aria-live="off">
       <span className="relative flex h-2 w-2">
         {!error && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ink-3 opacity-50 motion-reduce:hidden" />}
         <span className={`relative inline-flex h-2 w-2 rounded-full ${error ? "bg-neg" : "bg-ink-3"}`} />
       </span>
-      {error ? "aloqa yo'q" : <span className="num">jonli · {t}</span>}
+      {error ? t("aloqa yo'q") : <span className="num">{t("jonli")} · {time}</span>}
     </span>
   );
 }
 
-/** Понятная ошибка на узбекском с кнопкой повтора. */
+/** Понятная ошибка с кнопкой повтора. */
 export function ErrorState({ text, onRetry }: { text?: string | null; onRetry?: () => void }) {
   return (
     <div className="panel flex flex-col items-start gap-3 p-6">
-      <div className="text-[17px] font-semibold">Ma'lumotni yuklab bo'lmadi</div>
+      <div className="text-[17px] font-semibold">{t("Ma'lumotni yuklab bo'lmadi")}</div>
       <p className="max-w-[46ch] text-[15px] text-ink-2">
-        Server bilan aloqa yo'q. Internetni tekshiring yoki birozdan keyin qayta urinib ko'ring.
+        {t("Server bilan aloqa yo'q. Internetni tekshiring yoki birozdan keyin qayta urinib ko'ring.")}
         {text ? <span className="mt-1 block text-[13px] text-ink-3">{text}</span> : null}
       </p>
       {onRetry && (
         <button onClick={onRetry} className="h-10 rounded-el bg-surface-2 px-4 text-[14px] font-medium hover:bg-surface-3">
-          Qayta urinish
+          {t("Qayta urinish")}
         </button>
       )}
     </div>

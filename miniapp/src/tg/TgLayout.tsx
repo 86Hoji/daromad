@@ -9,6 +9,7 @@ import { LiveWave, MicButton } from "../features/Voice";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { LiveProvider } from "../lib/live";
 import { haptic } from "../lib/telegram";
+import { t } from "../lib/i18n";
 
 const TABS = [
   { to: "/tg", label: "Bosh", icon: Home, end: true },
@@ -23,7 +24,7 @@ function TabBar() {
     <nav
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      aria-label="Bo'limlar"
+      aria-label={t("Bo'limlar")}
     >
       <div className="mx-auto grid max-w-[560px] grid-cols-3" style={{ height: TAB_H }}>
         {TABS.map(({ to, label, icon: Icon, end }) => (
@@ -37,7 +38,7 @@ function TabBar() {
             {({ isActive }) => (
               <>
                 <Icon size={22} strokeWidth={isActive ? 2 : 1.6} />
-                {label}
+                {t(label)}
               </>
             )}
           </NavLink>
@@ -73,7 +74,7 @@ function TgComposer() {
                 className="pointer-events-auto flex w-full items-start gap-2 rounded-el bg-surface px-4 py-3 text-[14px] text-ink-2 shadow-float"
               >
                 <span className="flex-1">{v.hint}</span>
-                <button onClick={() => v.setHint(null)} aria-label="Yopish" className="text-ink-3">
+                <button onClick={() => v.setHint(null)} aria-label={t("Yopish")} className="text-ink-3">
                   <X size={16} />
                 </button>
               </motion.div>
@@ -100,20 +101,20 @@ function TgComposer() {
                       <span className="num text-[14px] font-medium text-neg-text">0:{String(v.seconds).padStart(2, "0")}</span>
                       <LiveWave levels={v.levels} className="h-7 flex-1 text-neg" />
                       <button type="button" onClick={v.cancel} className="px-2 text-[14px] text-ink-3">
-                        Bekor
+                        {t("Bekor")}
                       </button>
                     </>
                   ) : (
                     <>
                       <label htmlFor="tg-input" className="sr-only">
-                        Nima bo'ldi?
+                        {t("Nima bo'ldi?")}
                       </label>
                       <input
                         id="tg-input"
                         ref={input}
                         value={v.text}
                         onChange={(e) => v.setText(e.target.value)}
-                        placeholder="Bugun 1 million sotdim"
+                        placeholder={t("Bugun naqdga 1 million sotdim")}
                         className="h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3"
                         enterKeyHint="send"
                         disabled={v.busy !== null}
@@ -123,9 +124,9 @@ function TgComposer() {
                         type={v.text.trim() ? "submit" : "button"}
                         onClick={v.text.trim() ? undefined : () => setTyping(false)}
                         className="flex h-10 min-w-10 items-center justify-center rounded-full bg-surface-2 px-3 text-[14px] font-medium"
-                        aria-label={v.text.trim() ? "Yuborish" : "Yopish"}
+                        aria-label={v.text.trim() ? t("Yuborish") : t("Yopish")}
                       >
-                        {v.busy === "text" ? "…" : v.text.trim() ? "Yuborish" : <X size={16} />}
+                        {v.busy === "text" ? "…" : v.text.trim() ? t("Yuborish") : <X size={16} />}
                       </button>
                     </>
                   )}
@@ -135,7 +136,7 @@ function TgComposer() {
             {!typing && !v.recording && (
               <button
                 onClick={() => setTyping(true)}
-                aria-label="Matn bilan yozish"
+                aria-label={t("Matn bilan yozish")}
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-ink-2 shadow-float active:scale-95"
               >
                 <Keyboard size={20} strokeWidth={1.75} />

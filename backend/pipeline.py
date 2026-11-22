@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 import ai
 import db
 import logic
+import texts
 import tts
 from logic import EXPENSE_CATEGORIES, round1000
 
@@ -127,20 +128,24 @@ def get_drafts(shop_id: int, ids: list[int] | None = None, batch_id: str | None 
 # --- основной конвейер -------------------------------------------------------------
 
 async def process(shop_id: int, *, text: str | None = None, audio: bytes | None = None,
-                  mime_type: str = "audio/ogg", source: str = "text", today: date | None = None) -> dict:
+                  mime_type: str = "audio/ogg", source: str = "text", today: date | None = None,
+                  lang: str | None = None) -> dict:
     """Распознать ввод. record -> черновики; question -> ответ из цифр logic.
-    Бросает ai.AIUnavailable, если Gemini недоступен."""
+    Язык ответа и ошибок — язык, на котором говорил владелец (AI language / эвристика); lang — запасной
+    вариант (язык интерфейса), если язык не определился. Бросает ai.AIUnavailable, если Gemini недоступен."""
     today = today or date.today()
     parsed = await ai.parse_input(audio=audio, text=text, mime_type=mime_type, today=today)
+    lang = parsed.get("language") or texts.detect_lang(text) or texts.norm_lang(lang)
     db.audit(shop_id, "ai", "parsed", {"source": source, "intent": parsed["intent"],
                                        "transcript": parsed["transcript"], "events": parsed["events"]})
-    result = {"intent": parsed["intent"], "transcript": parsed["transcript"],
+    result = {"intent": parsed["intent"], "transcript": parsed["transcript"], "language": lang,
               "batch_id": None, "drafts": [], "errors": [], "answer": None, "voice_text": None}
 
     if parsed["intent"] == "question":
         question = parsed.get("question") or parsed["transcript"]
-        result["answer"], facts = await answer_full(shop_id, question, parsed.get("question_date"), today=today)
-        result["voice_text"] = voice_text(question, result["answer"], facts)
+        result["answer"], facts = await answer_full(shop_id, question, parsed.get("question_date"), today=today,
+                                                    lang=lang)
+        result["voice_text"] = voice_text(question, result["answer"], facts, lang=lang)
         return result
 
     valid = []
@@ -154,11 +159,12 @@ async def process(shop_id: int, *, text: str | None = None, audio: bytes | None 
         result["batch_id"], result["drafts"] = save_drafts(shop_id, valid, source)
     elif not result["errors"]:
         result["errors"].append("Hech qanday yozuv topmadim. Masalan: «Bugun 2 million sotdim».")
+    result["errors"] = texts.tr_list(result["errors"], lang)
     return result
 
 
 async def process_photo(shop_id: int, image: bytes, mime_type: str | None = None,
-                        today: date | None = None) -> dict:
+                        today: date | None = None, lang: str | None = None) -> dict:
     """Фото накладной / чека / скриншота Payme-Click -> черновики (source='photo'). Ничего не сохраняет
     без «To'g'ri». Gemini читает картинку (extras.vision), суммы и типы проверяет код."""
     from extras import vision
@@ -168,11 +174,12 @@ async def process_photo(shop_id: int, image: bytes, mime_type: str | None = None
     transcript = parsed.get("transcript") or ""
     db.audit(shop_id, "ai", "parsed", {"source": "photo", "intent": "record",
                                        "transcript": transcript, "events": parsed["events"]})
-    result = {"intent": "record", "transcript": transcript, "batch_id": None, "drafts": [], "errors": [],
-              "answer": None, "voice_text": None}
+    lang = texts.norm_lang(lang)
+    result = {"intent": "record", "transcript": transcript, "language": lang, "batch_id": None, "drafts": [],
+              "errors": [], "answer": None, "voice_text": None}
     if transcript.startswith("error:"):
         result["transcript"] = ""
-        result["errors"].append("Rasmni o'qib bo'lmadi. Aniqroq suratga olib qayta yuboring yoki ovoz bilan ayting.")
+        result["errors"].append(texts._("Rasmni o'qib bo'lmadi. Aniqroq suratga olib qayta yuboring yoki ovoz bilan ayting.", lang))
         return result
     valid = []
     for ev in parsed["events"]:
@@ -185,6 +192,7 @@ async def process_photo(shop_id: int, image: bytes, mime_type: str | None = None
         result["batch_id"], result["drafts"] = save_drafts(shop_id, valid, "photo")
     elif not result["errors"]:
         result["errors"].append("Rasmda summa topilmadi. Chek, nakladnoy yoki Payme/Click skrinshotini yuboring.")
+    result["errors"] = texts.tr_list(result["errors"], lang)
     return result
 
 
@@ -446,61 +454,69 @@ def build_facts(shop_id: int, question_date: str | None = None, today: date | No
     return facts
 
 
-def fallback_answer(question: str, facts: dict) -> str:
+def fallback_answer(question: str, facts: dict, lang: str = "uz") -> str:
     """Детерминированный ответ без ИИ (если Gemini недоступен или придумал цифры)."""
     q = question.lower()
-    m = logic.fmt_money
+    _ = texts._
+
+    def m(x):
+        return texts.fmt_money(x, lang)
+
     if any(w in q for w in ("qarz", "долж", "долг", "қарз")):
         debtors = facts["qarzdorlar"]
         if not debtors:
-            return "Hozir sizga hech kim qarz emas."
-        lines = [f"Sizga jami {m(facts['jami_qarzdorlik'])} qarz bor:"]
-        lines += [f"• {d['ism']} — {m(d['qarz'])} ({d['necha_kun']} kun)" for d in debtors]
+            return _("Hozir sizga hech kim qarz emas.", lang)
+        lines = [_("Sizga jami {total} qarz bor:", lang, total=m(facts["jami_qarzdorlik"]))]
+        lines += [f"• {d['ism']} — {m(d['qarz'])} ({texts.days(d['necha_kun'], lang)})" for d in debtors]
         return "\n".join(lines)
     if any(w in q for w in ("yetadi", "yetarmi", "хватит", "хватает", "етади")):
         f = facts.get("savoldagi_sanagacha") or facts["keyingi_to'lovgacha"]
-        free = f["bo'sh_pul"]
         if f["yetadimi"]:
-            return f"Ha, {f['sana']} gacha yetadi: bo'sh pul {m(free)}."
-        return f"Yo'q, {f['sana']} gacha {m(f['yetmaydigan_summa'])} yetmaydi."
+            return _("Ha, {date} gacha yetadi: bo'sh pul {free}.", lang, date=f["sana"], free=m(f["bo'sh_pul"]))
+        return _("Yo'q, {date} gacha {gap} yetmaydi.", lang, date=f["sana"], gap=m(f["yetmaydigan_summa"]))
     if any(w in q for w in ("sot", "прода", "выручк", "сот")):
         s = facts["sotuv"]
-        return (f"Sotuv: bugun {m(s['bugun'])}, shu hafta {m(s['shu_hafta'])}, shu oy {m(s['shu_oy'])}.")
+        return _("Sotuv: bugun {today}, shu hafta {week}, shu oy {month}.", lang,
+                 today=m(s["bugun"]), week=m(s["shu_hafta"]), month=m(s["shu_oy"]))
     if any(w in q for w in ("xarajat", "расход", "потрат", "харажат")):
         s = facts["xarajat"]
-        return f"Xarajat: bugun {m(s['bugun'])}, shu hafta {m(s['shu_hafta'])}, shu oy {m(s['shu_oy'])}."
+        return _("Xarajat: bugun {today}, shu hafta {week}, shu oy {month}.", lang,
+                 today=m(s["bugun"]), week=m(s["shu_hafta"]), month=m(s["shu_oy"]))
     f = facts["keyingi_to'lovgacha"]
-    free = f["bo'sh_pul"]
-    return f"Hisobingizda hozir {m(facts['hisobda_hozir'])}. {f['sana']} gacha bo'sh pul: {m(free)}."
+    return _("Hisobingizda hozir {cash}. {date} gacha bo'sh pul: {free}.", lang,
+             cash=m(facts["hisobda_hozir"]), date=f["sana"], free=m(f["bo'sh_pul"]))
 
 
 async def answer_full(shop_id: int, question: str, question_date: str | None = None,
-                      today: date | None = None) -> tuple[str, dict]:
+                      today: date | None = None, lang: str = "uz") -> tuple[str, dict]:
     facts = build_facts(shop_id, question_date, today)
     try:
-        text = await ai.answer_question(question, facts)
+        text = await ai.answer_question(question, facts, lang=lang)
     except ai.AIUnavailable:
-        return fallback_answer(question, facts), facts
+        return fallback_answer(question, facts, lang), facts
     if not ai.answer_uses_only_facts(text, facts):
         log.warning("AI javobida faktlarda yo'q raqam bor, shablon javob ishlatildi: %s", text)
-        return fallback_answer(question, facts), facts
+        return fallback_answer(question, facts, lang), facts
     return text, facts
 
 
-async def answer(shop_id: int, question: str, question_date: str | None = None, today: date | None = None) -> str:
-    return (await answer_full(shop_id, question, question_date, today))[0]
+async def answer(shop_id: int, question: str, question_date: str | None = None, today: date | None = None,
+                 lang: str = "uz") -> str:
+    return (await answer_full(shop_id, question, question_date, today, lang=lang))[0]
 
 
 DEBT_WORDS = ("qarz", "долж", "долг", "қарз")
 
 
-def voice_text(question: str, answer_text: str, facts: dict, top: int = 3) -> str:
+def voice_text(question: str, answer_text: str, facts: dict, top: int = 3, lang: str = "uz") -> str:
     """Текст для озвучки. Списки на слух — топ-3 и общая сумма (цифры — только из facts, как и в тексте)."""
     debtors = sorted(facts.get("qarzdorlar") or [], key=lambda d: -d["qarz"])
     if debtors and any(w in question.lower() for w in DEBT_WORDS):
-        m = logic.fmt_money
+        def m(x):
+            return texts.fmt_money(x, lang)
         names = ", ".join(f"{d['ism']} — {m(d['qarz'])}" for d in debtors[:top])
         rest = len(debtors) - top
-        tail = f", va yana {rest} kishi." if rest > 0 else "."
-        return f"Sizga jami {m(facts['jami_qarzdorlik'])} qarz bor. Eng kattalari: {names}{tail}"
-    return tts.for_voice(answer_text)
+        tail = texts._(", va yana {n} kishi.", lang, n=rest) if rest > 0 else "."
+        return texts._("Sizga jami {total} qarz bor. Eng kattalari: {names}", lang,
+                       total=m(facts["jami_qarzdorlik"]), names=names) + tail
+    return tts.for_voice(answer_text, lang=lang)
