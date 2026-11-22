@@ -8,8 +8,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import secrets
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from urllib.parse import parse_qsl
 
@@ -56,7 +57,41 @@ def validate_init_data(init_data: str, bot_token: str, max_age: int | None = INI
     return pairs
 
 
-def current_shop(x_telegram_init_data: str | None = Header(default=None)) -> dict:
+SESSION_DAYS = 7
+
+
+def create_session(shop_id: int) -> dict:
+    token = secrets.token_urlsafe(32)
+    now = datetime.now()
+    exp = now + timedelta(days=SESSION_DAYS)
+    db.execute("INSERT INTO sessions (token, shop_id, created_at, expires_at) VALUES (?,?,?,?)",
+               (token, shop_id, now.strftime("%Y-%m-%d %H:%M:%S"), exp.strftime("%Y-%m-%d %H:%M:%S")))
+    return {"token": token, "expires_at": exp.strftime("%Y-%m-%d %H:%M:%S")}
+
+
+def shop_by_token(token: str) -> dict | None:
+    row = db.query_one("SELECT shop_id, expires_at FROM sessions WHERE token=?", (token,))
+    if not row or row["expires_at"] < datetime.now().strftime("%Y-%m-%d %H:%M:%S"):
+        return None
+    return db.get_shop(row["shop_id"])
+
+
+def _bearer(authorization: str | None) -> str | None:
+    if authorization and authorization[:7].lower() == "bearer ":
+        return authorization[7:].strip() or None
+    return None
+
+
+def current_shop(x_telegram_init_data: str | None = Header(default=None),
+                 authorization: str | None = Header(default=None)) -> dict:
+    """Telegram — initData; сайт — Authorization: Bearer (сессия из /api/auth/demo);
+    без заголовков — демо-бизнес DEV_SHOP_ID (локальная разработка, старые клиенты)."""
+    token = _bearer(authorization)
+    if token and not x_telegram_init_data:
+        shop = shop_by_token(token)
+        if not shop:
+            raise HTTPException(status_code=401, detail="Sessiya tugagan — qayta kiring.")
+        return shop
     if x_telegram_init_data:
         try:
             data = validate_init_data(x_telegram_init_data, config.BOT_TOKEN)
@@ -342,4 +377,30 @@ def recurring_update(rid: int, body: RecurringIn, shop: dict = Depends(current_s
 def recurring_delete(rid: int, shop: dict = Depends(current_shop), lang: str = Depends(ui_lang)) -> dict:
     if not recurring.delete(shop["id"], rid):
         raise HTTPException(status_code=404, detail=texts._("Doimiy to'lov topilmadi", lang))
+    return {"ok": True}
+
+
+# --- вход на сайт (минимум: только демо, без регистрации) ---------------------------------
+
+@router.post("/auth/demo")
+def auth_demo() -> dict:
+    """«Войти в демо (Alisher Savdo)» -> токен сессии для заголовка Authorization: Bearer."""
+    shop = db.get_shop(config.DEV_SHOP_ID)
+    if not shop:
+        raise HTTPException(status_code=404, detail="Demo biznes yo'q — `python seed.py --reset` ishga tushiring.")
+    s = create_session(shop["id"])
+    db.audit(shop["id"], "owner", "web_login", {"method": "demo"})
+    return {**s, "shop": shop_view(shop)}
+
+
+@router.get("/auth/me")
+def auth_me(shop: dict = Depends(current_shop)) -> dict:
+    return {"shop": shop_view(shop)}
+
+
+@router.post("/auth/logout")
+def auth_logout(authorization: str | None = Header(default=None)) -> dict:
+    token = _bearer(authorization)
+    if token:
+        db.execute("DELETE FROM sessions WHERE token=?", (token,))
     return {"ok": True}

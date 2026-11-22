@@ -14,3 +14,11 @@ def test_demo_names_and_free_money(tmp_db):
     assert next(d for d in logic.open_debts(1, TODAY) if d["person_name"] == "Jamshid")["days_open"] == 21
     assert not db.query("SELECT 1 FROM debts WHERE shop_id=1 AND person_name='Alisher'")
     assert fm["free_money"] == -350_000
+
+
+def test_demo_debtor_phone_env(tmp_db, monkeypatch):
+    monkeypatch.setenv("DEMO_DEBTOR_PHONE", "90 111 22 33")
+    fm = seed.seed(reset=True, today=TODAY, shop_id=1)
+    j = db.query_one("SELECT * FROM debts WHERE shop_id=1 AND person_name='Jamshid'")
+    assert j["phone"] == "+998901112233" and j["sms_consent"] == 1
+    assert fm["free_money"] == -350_000

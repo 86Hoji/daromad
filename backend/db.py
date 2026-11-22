@@ -125,6 +125,14 @@ CREATE TABLE IF NOT EXISTS recurring_payments (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_recurring_shop ON recurring_payments(shop_id, active);
+
+-- сессии сайта (/login -> «Войти в демо»): Authorization: Bearer <token>. Telegram по-прежнему — initData.
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    shop_id INTEGER NOT NULL,          -- без FK: Demo reset пересоздаёт магазин с тем же id, сессия остаётся
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
 """
 
 # Денежные потоки вне P&L: принятые банковские офферы (овердрафт, вклад) и изъятия владельца.

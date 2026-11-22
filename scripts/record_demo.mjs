@@ -19,7 +19,10 @@ const shot = async (name) => page.screenshot({ path: `${out}/${String(++n).padSt
 const free = async () => (await page.locator("main").first().innerText()).match(/[−-]?\d{1,3}(?: \d{3})+(?=\s*so'm)/)?.[0];
 
 log("reset " + (await (await page.request.post("http://localhost:8000/api/demo/reset")).text()));
-await page.goto(`${APP}/app`, { timeout: 60000 });
+// вход на сайт: /login -> «Войти в демо» (токен сессии в localStorage)
+await page.goto(`${APP}/login`, { timeout: 60000 });
+await page.getByRole("button", { name: /Alisher Savdo/ }).click();
+await page.waitForURL(/\/app/);
 await page.waitForTimeout(4500);
 await shot("start"); log("start free=" + (await free()));
 

@@ -36,7 +36,7 @@ function CtaLink({ to, href, children, primary = false, icon }: { to?: string; h
 function Ctas({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col gap-3 sm:flex-row ${className}`}>
-      <CtaLink to="/app" primary icon={<Play size={18} strokeWidth={1.9} aria-hidden />}>
+      <CtaLink to="/login" primary icon={<Play size={18} strokeWidth={1.9} aria-hidden />}>
         {t("Demo'ni ochish")}
       </CtaLink>
       <CtaLink href={BOT_URL} icon={<Send size={18} strokeWidth={1.75} aria-hidden />}>
@@ -68,7 +68,7 @@ function Header() {
         <div className="flex items-center gap-1.5">
           <LangSwitch compact />
           <ThemeToggle className="hidden sm:inline-flex" />
-          <Link to="/app" className="btn-fx inline-flex h-10 items-center rounded-full bg-brand px-5 text-[15px] font-medium text-brand-ink hover:bg-brand-hover">
+          <Link to="/login" className="btn-fx inline-flex h-10 items-center rounded-full bg-brand px-5 text-[15px] font-medium text-brand-ink hover:bg-brand-hover">
             Demo
           </Link>
         </div>

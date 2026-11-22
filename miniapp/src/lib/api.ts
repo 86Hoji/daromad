@@ -1,5 +1,6 @@
 // Клиент API Flowcast. В Telegram шлёт X-Telegram-Init-Data, в браузере — без него (DEV_SHOP_ID).
 import { getLang, t } from "./i18n";
+import { clearToken, sessionToken } from "./auth";
 import { initData } from "./telegram";
 
 export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
@@ -15,9 +16,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Telegram — initData; сайт — Bearer-токен сессии (POST /api/auth/demo). */
+function authHeaders(h: Headers) {
+  if (initData) h.set("X-Telegram-Init-Data", initData);
+  else {
+    const tok = sessionToken();
+    if (tok) h.set("Authorization", `Bearer ${tok}`);
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (initData) headers.set("X-Telegram-Init-Data", initData);
+  authHeaders(headers);
   headers.set("Accept-Language", getLang()); // язык ответов AI и текстов ошибок
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   let res: Response;
@@ -25,6 +35,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
     throw new ApiError(0, t("Server bilan aloqa yo'q"));
+  }
+  if (res.status === 401 && !initData && sessionToken()) {
+    // сессия истекла — на страницу входа
+    clearToken();
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/app")) window.location.assign("/login");
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -344,7 +359,7 @@ export const api = {
   /** озвучка ответа: WAV (играет в любом браузере и WebView) */
   tts: async (text: string): Promise<Blob> => {
     const headers = new Headers({ "Content-Type": "application/json" });
-    if (initData) headers.set("X-Telegram-Init-Data", initData);
+    authHeaders(headers);
   headers.set("Accept-Language", getLang()); // язык ответов AI и текстов ошибок
     const res = await fetch(`${API_URL}/api/tts`, { method: "POST", headers, body: JSON.stringify({ text, format: "wav" }) });
     if (!res.ok) throw new ApiError(res.status, res.statusText);
@@ -352,6 +367,8 @@ export const api = {
   },
   demoReset: () => post<{ ok: boolean; free_money: number }>("/api/demo/reset"),
   confirm: (ids: number[]) => post<{ confirmed: unknown[]; errors: string[] }>("/api/entries/confirm", { ids }),
+  authDemo: () => post<{ token: string; expires_at: string; shop: { id: number; name: string } }>("/api/auth/demo"),
+  logout: () => post<{ ok: boolean }>("/api/auth/logout"),
   reject: (ids: number[]) => post<{ rejected: number }>("/api/entries/reject", { ids }),
 
   recurring: () => request<{ items: RecurringItem[] }>("/api/recurring"),

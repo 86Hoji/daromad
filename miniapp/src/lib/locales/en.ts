@@ -441,4 +441,10 @@ export const EN: Record<string, string> = {
   "Yordamchi maoshi": "Assistant's salary",
   // --- Iteration 2 · Block 1 ---
   "o'tgan davrga nisbatan {pct}%": "{pct}% vs previous period",
+  // --- Login ---
+  "Chiqish": "Log out",
+  "Flowcast'ga kirish": "Sign in to Flowcast",
+  "Demo biznesda hamma narsani sinab ko'ring: pul chizig'i, qarzlar, eslatmalar.": "Try everything on a demo business: money line, debts, reminders.",
+  "Demoga kirish (Alisher Savdo)": "Enter the demo (Alisher Savdo)",
+  "Ro'yxatdan o'tish tez orada. Telegram'da — botdagi «Hisobim» tugmasi.": "Sign-up is coming soon. In Telegram, use the bot’s “My account” button.",
 };

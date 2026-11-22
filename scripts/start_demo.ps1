@@ -98,13 +98,13 @@ try {
       -> Deployments -> Redeploy (Vite manzilni build paytida yozadi).
    2. Tekshirish: $url/  ->  {"ok": true, ...}
    3. backend\.env: WEBAPP_URL=https://<vercel-loyiha>.vercel.app/tg  (o'zgarsa - shu skriptni qayta ishga tushiring)
-   4. Telegram -> bot -> «Hisobim» tugmasi. Lokal: http://localhost:5173/app
+   4. Telegram -> bot -> «Hisobim» tugmasi. Lokal: http://localhost:5173/login
   Tunnel manzili har ishga tushirishda o'zgaradi. To'xtatish: Ctrl+C
 "@
     } else {
         Write-Host "  Backend: http://localhost:$Port  (tunnelsiz)" -ForegroundColor Yellow
         Write-Host $line -ForegroundColor Green
-        Write-Host "  Lokal demo: npm --prefix miniapp run dev  ->  http://localhost:5173/app   To'xtatish: Ctrl+C"
+        Write-Host "  Lokal demo: npm --prefix miniapp run dev  ->  http://localhost:5173/login   To'xtatish: Ctrl+C"
     }
 
     Wait-Process -Id $api.Id
