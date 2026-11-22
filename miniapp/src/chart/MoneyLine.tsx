@@ -235,11 +235,14 @@ interface AxisLike {
 interface CustomizedProps {
   xAxisMap?: Record<string, AxisLike>;
   yAxisMap?: Record<string, AxisLike>;
+  /** ширина всего svg графика — граница для подписей булавок */
+  width?: number;
 }
 
 function Pins({
   xAxisMap,
   yAxisMap,
+  width,
   pins,
   low,
   pal,
@@ -259,9 +262,9 @@ function Pins({
   const Y = (v: number) => ya.scale(v);
   const pinY = plotBottom + 10;
   const fs = compact ? 11 : 12;
-  const range = (xa as unknown as { range?: number[] }).range ?? [0, 9999];
-  const left = Math.min(...range) - 4;
-  const right = Math.max(...range) + 4;
+  // подпись может заходить в поля графика, но не за край svg (иначе обрежется)
+  const left = 2;
+  const right = (width ?? 9999) - 2;
 
   // жадно: от крупных событий к мелким; подпись влезает целиком и не задевает соседей — иначе только точка
   const weight = (p: Point) => Math.max(...p.events.map((e) => Math.abs(e.amount)));
@@ -271,7 +274,7 @@ function Pins({
     const main = [...p.events].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))[0];
     const more = p.events.length > 1 ? ` +${p.events.length - 1}` : "";
     const text = eventShort(main) + more;
-    const w = text.length * fs * 0.58;
+    const w = text.length * fs * 0.62 + 4;
     const x = X(p.date);
     let a = x - w / 2;
     let anchor: "start" | "middle" | "end" = "middle";
