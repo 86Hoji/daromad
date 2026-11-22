@@ -274,12 +274,21 @@ async def _call_gemini(image_bytes: bytes, mime: str, prompt: str, model: str, k
     from google.genai import types
 
     import ai
-    client = ai._get_client() if key == ai.config.GEMINI_API_KEY else genai.Client(api_key=key)
+    import gemini_keys
+    client = ai._get_client() if key == gemini_keys.current() else genai.Client(api_key=key)
     cfg = types.GenerateContentConfig(temperature=0.0, response_mime_type="application/json",
                                       response_schema=PhotoParsed)
     resp = await client.aio.models.generate_content(
         model=model, contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime), prompt], config=cfg)
     return (resp.text or "").strip()
+
+
+async def _call_with_failover(image_bytes: bytes, mime: str, prompt: str, model: str, key: str) -> str:
+    import config
+    import gemini_keys
+    if key != config.GEMINI_API_KEY:
+        return await _call_gemini(image_bytes, mime, prompt, model, key)
+    return await gemini_keys.run("vision", lambda: _call_gemini(image_bytes, mime, prompt, model, gemini_keys.current()))
 
 
 def detect_mime(image_bytes: bytes, filename: str | None = None) -> str | None:
@@ -328,7 +337,7 @@ async def aparse_photo(image_bytes: bytes, mime: str | None = None, today: date 
             last_error = "sun'iy intellekt javob bermadi (timeout)"
             break
         try:
-            text = await asyncio.wait_for(_call_gemini(image_bytes, mime, prompt, model, key),
+            text = await asyncio.wait_for(_call_with_failover(image_bytes, mime, prompt, model, key),
                                           min(ATTEMPT_TIMEOUT, left))
             break
         except Exception as exc:  # сеть, квота, ключ, модель — программа не падает

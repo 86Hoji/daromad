@@ -8,7 +8,9 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip()
+# GEMINI_API_KEYS=key1,key2 (первый основной); если пусто, работает GEMINI_API_KEY
+GEMINI_API_KEYS: list[str] = [k.strip() for k in os.getenv("GEMINI_API_KEYS", "").split(",") if k.strip()]
+GEMINI_API_KEY: str = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "").strip() or "gemini-flash-latest"
 WEBAPP_URL: str = os.getenv("WEBAPP_URL", "").strip()
 DEV_SHOP_ID: int = int(os.getenv("DEV_SHOP_ID", "1") or 1)

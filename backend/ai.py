@@ -17,6 +17,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 import config
+import gemini_keys
 import texts
 import uz_numbers
 from logic import WEEKDAYS_UZ
@@ -142,17 +143,17 @@ def normalize_phone(raw: str | None) -> str | None:
 
 # --- клиент ----------------------------------------------------------------------
 
-_client = None
+_clients: dict[str, object] = {}
 
 
 def _get_client():
-    global _client
     if not config.GEMINI_API_KEY:
         raise AIUnavailable("Sun'iy intellekt sozlanmagan (GEMINI_API_KEY yo'q). Administratorga xabar bering.")
-    if _client is None:
+    key = gemini_keys.current()
+    if key not in _clients:
         from google import genai
-        _client = genai.Client(api_key=config.GEMINI_API_KEY)
-    return _client
+        _clients[key] = genai.Client(api_key=key)
+    return _clients[key]
 
 
 # Резервная цепочка моделей. gemini-2.5-flash недоступна новым ключам (Google: 404, советует 3.8-flash);
@@ -187,7 +188,7 @@ def _model_chain() -> list[str]:
 async def _generate(contents, schema=None, temperature: float = 0.0) -> str:
     from google.genai import types
 
-    client = _get_client()
+    _get_client()  # без ключа — понятная ошибка сразу
     cfg = types.GenerateContentConfig(temperature=temperature)
     if schema is not None:
         cfg.response_mime_type = "application/json"
@@ -197,8 +198,8 @@ async def _generate(contents, schema=None, temperature: float = 0.0) -> str:
     for model in _model_chain():
         for attempt in range(RETRIES_PER_MODEL + 1):
             try:
-                resp = await asyncio.wait_for(
-                    client.aio.models.generate_content(model=model, contents=contents, config=cfg), CALL_TIMEOUT)
+                resp = await gemini_keys.run("text", lambda: asyncio.wait_for(
+                    _get_client().aio.models.generate_content(model=model, contents=contents, config=cfg), CALL_TIMEOUT))
             except Exception as exc:  # сеть, квота, неверная модель — бот не должен падать
                 last_exc = exc
                 what = "timeout" if isinstance(exc, asyncio.TimeoutError) else str(exc)[:160]

@@ -218,7 +218,6 @@ def _setup_main_ai() -> list[str]:
     key, models = vision._settings()
     if not config.GEMINI_API_KEY and key:
         config.GEMINI_API_KEY = key
-        ai._client = None
     if not config.GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY yo'q: backend/.env ga yozing")
     return models

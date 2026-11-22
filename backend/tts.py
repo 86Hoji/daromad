@@ -14,6 +14,7 @@ import struct
 from collections import OrderedDict
 
 import config
+import gemini_keys
 import texts
 
 log = logging.getLogger("flowcast.tts")
@@ -165,18 +166,18 @@ def _disk_put(k: str, pcm: bytes, mime: str) -> None:
         log.warning("TTS keshga yozilmadi: %s", exc)
 
 
-_client = None
+_clients: dict[str, object] = {}
 
 
 def _get_client():
     # speech_config есть только в v1beta (SDK по умолчанию ходит в v1 -> 400 «Unknown name speechConfig»)
-    global _client
-    if _client is None:
+    key = gemini_keys.current()
+    if key not in _clients:
         from google import genai
         from google.genai import types
 
-        _client = genai.Client(api_key=config.GEMINI_API_KEY, http_options=types.HttpOptions(api_version="v1beta"))
-    return _client
+        _clients[key] = genai.Client(api_key=key, http_options=types.HttpOptions(api_version="v1beta"))
+    return _clients[key]
 
 
 async def _generate(text: str) -> tuple[bytes, str]:
@@ -222,7 +223,7 @@ async def synthesize_pcm(text: str) -> tuple[bytes, str] | None:
     res = _disk_get(k)
     if res is None:
         try:
-            res = await asyncio.wait_for(_generate(text), TIMEOUT)
+            res = await asyncio.wait_for(gemini_keys.run("tts", lambda: _generate(text)), TIMEOUT)
         except Exception as exc:  # сеть, квота, таймаут, нет модели — молча без голоса
             log.warning("TTS ishlamadi: %s", exc)
             return None
