@@ -1,7 +1,9 @@
 // Оболочка дашборда /app: сайдбар на ≥1280, верхняя навигация ниже; голосовой док снизу.
 import { BRAND } from "../lib/brand";
-import { BookText, Home, PieChart, Users } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { BookText, Home, LogOut, PieChart, Users } from "lucide-react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { clearToken, sessionToken } from "../lib/auth";
 import { ReminderProvider } from "../features/Reminder";
 import { LiveProvider, useLive } from "../lib/live";
 import { useLenis, useSpotlight } from "../lib/fx";
@@ -17,6 +19,32 @@ const NAV = [
   { to: "/app/hisobot", label: "Hisobot", icon: PieChart },
   { to: "/app/jurnal", label: "Jurnal", icon: BookText },
 ];
+
+/** «Выйти»: удалить сессию на сервере и в браузере -> /login. */
+function LogoutButton({ compact = false }: { compact?: boolean }) {
+  const nav = useNavigate();
+  if (!sessionToken()) return null;
+  const out = async () => {
+    try {
+      await api.logout();
+    } catch {
+      /* офлайн — всё равно выходим локально */
+    }
+    clearToken();
+    nav("/login", { replace: true });
+  };
+  return (
+    <button
+      onClick={out}
+      aria-label={t("Chiqish")}
+      title={t("Chiqish")}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-el px-2.5 text-[13px] text-ink-3 transition hover:bg-surface-2 hover:text-ink ${compact ? "h-10" : ""}`}
+    >
+      <LogOut size={15} strokeWidth={1.75} />
+      {!compact && t("Chiqish")}
+    </button>
+  );
+}
 
 function Sidebar() {
   const { summary, updatedAt, error } = useLive();
@@ -59,6 +87,7 @@ function Sidebar() {
       <div className="mt-auto px-1">
         <LangSwitch className="mb-3" />
         <DemoResetButton />
+        <LogoutButton />
         <div className="mt-1 flex items-center justify-between gap-2">
           <LiveDot at={updatedAt} error={error} />
           <ThemeToggle />
@@ -83,6 +112,7 @@ function TopNav() {
           </Chip>
           <LangSwitch compact className="ml-2" />
           <ThemeToggle />
+          <LogoutButton compact />
         </div>
       </div>
       <nav className="no-scrollbar mx-auto flex max-w-[960px] gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6" aria-label={t("Bo'limlar")}>

@@ -8,7 +8,7 @@
 
 1. Запустить бэкенд с демо-сбросом: в `backend\.env` поставить `DEMO_RESET=1`, затем выполнить
    `powershell -ExecutionPolicy Bypass -File scripts\start_demo.ps1`.
-2. Открыть фронт: Vercel или локально `npm --prefix miniapp run dev`, адрес `http://localhost:5173/app?reset`.
+2. Открыть фронт: Vercel или локально `npm --prefix miniapp run dev`, адрес `http://localhost:5173/login?reset` → кнопка **«Войти в демо (Alisher Savdo)»** → откроется `/app?reset` (сессия живёт 7 дней, Demo reset её не сбрасывает).
    С `?reset` в сайдбаре видна кнопка «Demo reset».
 3. **Сделать один полный прогон-репетицию** по шагам ниже. Он сразу проверяет микрофон, сеть и ключ Gemini.
    Кроме того, голосовой ответ на шаге 6 сохраняется в дисковый кэш (`backend/data/tts_cache`).

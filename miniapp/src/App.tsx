@@ -1,13 +1,22 @@
-// Один код, три оболочки: лендинг (/), дашборд (/app), Mini App (/tg) + страница оплаты (/pay/:token).
+// Один код, три оболочки: лендинг (/), дашборд (/app, после /login), Mini App (/tg) + страница оплаты (/pay/:token).
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "./app/AppLayout";
 import { AppDebts, AppHome, AppJournal, AppReport } from "./app/pages";
 import { inTelegram } from "./lib/telegram";
+import { sessionToken } from "./lib/auth";
+import { Login } from "./screens/Login";
 import { Pay } from "./screens/Pay";
 import { TgLayout } from "./tg/TgLayout";
 import { TgDebtDetail, TgDebts, TgHome, TgReport } from "./tg/pages";
 import { ToastHost } from "./ui/Toast";
+
+/** /app — только после входа (сайт) или из Telegram. ?reset и прочие параметры переживают редирект. */
+function RequireSession() {
+  const loc = useLocation();
+  if (sessionToken() || inTelegram) return <AppLayout />;
+  return <Navigate to={`/login${loc.search}`} replace />;
+}
 
 const Landing = lazy(() => import("./landing/Landing"));
 
@@ -27,7 +36,8 @@ export default function App() {
             )
           }
         />
-        <Route path="/app" element={<AppLayout />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/app" element={<RequireSession />}>
           <Route index element={<AppHome />} />
           <Route path="qarzlar" element={<AppDebts />} />
           <Route path="hisobot" element={<AppReport />} />

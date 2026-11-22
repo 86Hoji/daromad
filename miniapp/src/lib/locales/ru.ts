@@ -442,4 +442,10 @@ export const RU: Record<string, string> = {
   "Yordamchi maoshi": "Зарплата помощнику",
   // --- Iteration 2 · Block 1 ---
   "o'tgan davrga nisbatan {pct}%": "к прошлому периоду {pct}%",
+  // --- Login ---
+  "Chiqish": "Выйти",
+  "Flowcast'ga kirish": "Вход в Flowcast",
+  "Demo biznesda hamma narsani sinab ko'ring: pul chizig'i, qarzlar, eslatmalar.": "Попробуйте всё на демо-бизнесе: линия денег, долги, напоминания.",
+  "Demoga kirish (Alisher Savdo)": "Войти в демо (Alisher Savdo)",
+  "Ro'yxatdan o'tish tez orada. Telegram'da — botdagi «Hisobim» tugmasi.": "Регистрация — скоро. В Telegram — кнопка «Мой счёт» в боте.",
 };

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import sqlite3
 from datetime import date, timedelta
 
 import config
@@ -53,6 +54,16 @@ def wipe(shop_id: int) -> int | None:
                       "recurring_payments",
                       "audit_log"):
             conn.execute(f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
+        # Таблицы, о которых seed не знает (локальная БД после других веток), — тоже чистим; sessions не трогаем.
+        known = {"shops", "sessions"}
+        extra = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                 if r[0] not in known and any(c[1] == "shop_id" for c in conn.execute(f"PRAGMA table_info({r[0]})"))]
+        for _ in range(3):  # несколько проходов — дочерние таблицы раньше родительских
+            for table in extra:
+                try:
+                    conn.execute(f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
+                except sqlite3.IntegrityError:
+                    pass
         conn.execute("DELETE FROM shops WHERE id=?", (shop_id,))
     return tg_user_id
 
