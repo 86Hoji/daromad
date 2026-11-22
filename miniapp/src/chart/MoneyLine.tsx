@@ -45,8 +45,14 @@ export function eventWho(e: FcEvent): string {
   return TYPE_SHORT[e.type] ? t(TYPE_SHORT[e.type]) : eventTitle(e);
 }
 
+/** Короткое имя для подписи на графике: «Зарплата помощнику» -> «Зарплата». Полное — в тултипе. */
+export function eventWhoShort(e: FcEvent): string {
+  const w = eventWho(e);
+  return w.length > 11 ? w.split(/\s+/)[0].slice(0, 12) : w;
+}
+
 export function eventShort(e: FcEvent): string {
-  return `${eventWho(e)} ${isOutflow(e) ? "−" : "+"}${moneyShort(Math.abs(e.amount))}`;
+  return `${eventWhoShort(e)} ${isOutflow(e) ? "−" : "+"}${moneyShort(Math.abs(e.amount))}`;
 }
 
 /** «Красивые» деления, обязательно с нулём. */
@@ -123,18 +129,8 @@ export function MoneyLine({
   const step = compact ? 7 : 3;
   const xTicks = points.filter((_, i) => (i - todayIdx) % step === 0).map((p) => p.date);
 
-  // --- булавки: крупнейшее событие подписано всегда, остальные — если есть место ---------
-  const pins = useMemo(() => {
-    const withEv = points.map((p, i) => ({ p, i })).filter(({ p }) => p.events.length > 0);
-    const weight = (p: Point) => Math.max(...p.events.map((e) => Math.abs(e.amount)));
-    const order = [...withEv].sort((a, b) => weight(b.p) - weight(a.p));
-    const labelled = new Set<number>();
-    const gap = compact ? 99 : 4;
-    for (const x of order) {
-      if (labelled.size === 0 || [...labelled].every((j) => Math.abs(j - x.i) > gap)) labelled.add(x.i);
-    }
-    return withEv.map(({ p, i }) => ({ p, i, label: labelled.has(i) }));
-  }, [points, compact]);
+  // --- булавки: подписи раскладываются в пикселях внутри Pins (без обрезки и наложений) ----
+  const pins = useMemo(() => points.map((p, i) => ({ p, i })).filter(({ p }) => p.events.length > 0), [points]);
 
   // самая глубокая точка нехватки в прогнозе — подписываем суммой
   const low = useMemo(() => {
@@ -250,7 +246,7 @@ function Pins({
   plotBottom,
   compact,
 }: CustomizedProps & {
-  pins: { p: Point; i: number; label: boolean }[];
+  pins: { p: Point; i: number }[];
   low: Point | null;
   pal: Palette;
   plotBottom: number;
@@ -262,25 +258,54 @@ function Pins({
   const X = (d: string) => xa.scale(d);
   const Y = (v: number) => ya.scale(v);
   const pinY = plotBottom + 10;
+  const fs = compact ? 11 : 12;
+  const range = (xa as unknown as { range?: number[] }).range ?? [0, 9999];
+  const left = Math.min(...range) - 4;
+  const right = Math.max(...range) + 4;
+
+  // жадно: от крупных событий к мелким; подпись влезает целиком и не задевает соседей — иначе только точка
+  const weight = (p: Point) => Math.max(...p.events.map((e) => Math.abs(e.amount)));
+  const placed: { a: number; b: number }[] = [];
+  const layout = new Map<string, { text: string; x: number; anchor: "start" | "middle" | "end" }>();
+  for (const { p } of [...pins].sort((a, b) => weight(b.p) - weight(a.p))) {
+    const main = [...p.events].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))[0];
+    const more = p.events.length > 1 ? ` +${p.events.length - 1}` : "";
+    const text = eventShort(main) + more;
+    const w = text.length * fs * 0.58;
+    const x = X(p.date);
+    let a = x - w / 2;
+    let anchor: "start" | "middle" | "end" = "middle";
+    if (a < left) {
+      a = x - 6;
+      anchor = "start";
+    } else if (x + w / 2 > right) {
+      a = x - w + 6;
+      anchor = "end";
+    }
+    const b = a + w;
+    if (a < left || b > right || placed.some((q) => a < q.b + 10 && b > q.a - 10)) continue;
+    if (compact && placed.length >= 2) continue;
+    placed.push({ a, b });
+    layout.set(p.date, { text, x: anchor === "start" ? a : anchor === "end" ? b : x, anchor });
+  }
 
   return (
     <g>
-      {pins.map(({ p, label }) => {
+      {pins.map(({ p }) => {
+        const lab = layout.get(p.date);
+        const label = !!lab;
         const out = p.events.some(isOutflow);
         const color = out ? (p.v < 0 ? pal.neg : pal.ink2) : pal.pos;
-        const main = [...p.events].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))[0];
         const x = X(p.date);
         const y = Y(p.v);
-        const more = p.events.length > 1 ? ` +${p.events.length - 1}` : "";
         return (
           <g key={p.date}>
             <line x1={x} x2={x} y1={y + 5} y2={pinY - 5} stroke={color} strokeOpacity={0.35} strokeDasharray="2 3" />
             <circle cx={x} cy={y} r={4.5} fill={pal.surface} stroke={color} strokeWidth={2.25} />
             <circle cx={x} cy={pinY} r={label ? 5 : 3.5} fill={color} />
-            {label && (
-              <text x={x} y={pinY + 18} textAnchor="middle" fontSize={compact ? 11 : 12} fontWeight={600} fill={color === pal.ink2 ? pal.ink : color}>
-                {eventShort(main)}
-                {more}
+            {lab && (
+              <text x={lab.x} y={pinY + 18} textAnchor={lab.anchor} fontSize={fs} fontWeight={600} fill={color === pal.ink2 ? pal.ink : color} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {lab.text}
               </text>
             )}
           </g>

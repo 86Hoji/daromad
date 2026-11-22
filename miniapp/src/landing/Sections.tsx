@@ -26,6 +26,8 @@ import { t } from "../lib/i18n";
 export const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
 export const H2 = "display text-[clamp(34px,4.4vw,62px)] leading-[1.02] font-bold tracking-[-0.04em]";
 const H2S = "display text-[clamp(30px,3.4vw,48px)] leading-[1.06] font-bold tracking-[-0.035em]";
+// заголовок шага: ширина колонки ~360–520px, «Oldindan biling»/«Подтвердите» должны влезать в одну-две строки
+const STEP_H = "display text-[clamp(32px,2.9vw,50px)] leading-[1.04] font-bold tracking-[-0.04em] [overflow-wrap:anywhere] hyphens-auto";
 const LEAD = "mt-5 max-w-[580px] text-[17px] leading-relaxed text-ink-2 sm:text-[19px]";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -40,14 +42,9 @@ function useMedia(q: string) {
   return on;
 }
 
-function Eyebrow({ n, children }: { n: string; children: ReactNode }) {
-  return (
-    <div className="mb-6 flex items-center gap-3 text-[14px] text-ink-3">
-      <span className="num">{n}</span>
-      <span className="h-px w-10 bg-ink-3/40" aria-hidden />
-      {children}
-    </div>
-  );
+/** Короткая подпись раздела — без номеров и декоративных линий. */
+function Eyebrow({ children }: { children: ReactNode }) {
+  return <div className="mb-5 text-[14px] font-medium text-ink-3">{children}</div>;
 }
 
 /** Появление при входе в экран: подъём с пружиной, по индексу — каскад. */
@@ -90,7 +87,7 @@ export function Problem() {
   return (
     <section className={`${WRAP} py-24 lg:py-36`} aria-labelledby="muammo">
       <Reveal>
-        <Eyebrow n="01">{t("Muammo")}</Eyebrow>
+        <Eyebrow>{t("Muammo")}</Eyebrow>
       </Reveal>
       <Reveal i={1}>
         <h2 id="muammo" className={`${H2} max-w-[920px]`}>
@@ -115,17 +112,16 @@ export function Problem() {
             </figcaption>
           </figure>
         </Reveal>
-        <ol className="grid gap-5">
+        <ul className="flex flex-col justify-center divide-y divide-line/80 lg:px-4">
           {THESES.map((th, i) => (
-            <Reveal as="li" key={th.title} i={i + 1} className="glass lift-1 flex gap-6 rounded-[28px] p-6 sm:gap-8 sm:p-8">
-              <span className="display num text-[15px] font-semibold text-ink-3">0{i + 1}</span>
+            <Reveal as="li" key={th.title} i={i + 1} className="py-7 first:pt-2 last:pb-2 sm:py-8">
               <div>
                 <h3 className="display text-[22px] leading-tight font-semibold tracking-[-0.02em] sm:text-[24px]">{t(th.title)}</h3>
                 <p className="mt-2.5 max-w-[560px] text-[16px] leading-relaxed text-ink-2">{t(th.text)}</p>
               </div>
             </Reveal>
           ))}
-        </ol>
+        </ul>
       </div>
     </section>
   );
@@ -286,12 +282,12 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
   return (
     <div ref={ref} className="relative h-[330vh]">
       <div className="sticky top-0 flex h-screen items-center">
-        <div className={`${WRAP} grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-center gap-14 xl:gap-20`}>
-          <div>
-            <Eyebrow n="02">{t("Qanday ishlaydi")}</Eyebrow>
+        <div className={`${WRAP} grid grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)] items-center gap-12 xl:gap-16`}>
+          <div className="relative z-10 min-w-0">
+            <Eyebrow>{t("Qanday ishlaydi")}</Eyebrow>
             <div className="flex gap-8">
               <Progress p={p} step={step} />
-              <div className="relative min-h-[330px] flex-1">
+              <div className="relative min-h-[330px] min-w-0 flex-1">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={step}
@@ -300,8 +296,7 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
                     exit={reduce ? undefined : { opacity: 0, y: -26 }}
                     transition={reduce ? { duration: 0 } : { duration: 0.42, ease: EASE }}
                   >
-                    <div className="num text-[15px] text-ink-3">0{step + 1} / 03</div>
-                    <h3 className={`${H2} mt-3`}>{t(STEPS[step].title)}</h3>
+                    <h3 className={STEP_H}>{t(STEPS[step].title)}</h3>
                     <p className={LEAD}>{t(STEPS[step].text)}</p>
                   </motion.div>
                 </AnimatePresence>
@@ -309,7 +304,7 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
             </div>
           </div>
 
-          <div className="glass lift-3 rounded-[36px] p-7 xl:p-9">
+          <div className="glass lift-3 min-w-0 rounded-[36px] p-7 xl:p-9">
             <div className="flex w-fit gap-1 rounded-full bg-surface-2/60 p-1" aria-hidden>
               {STEPS.map((s, i) => (
                 <span key={s.title} className={`relative rounded-full px-4 py-2 text-[14px] transition-colors duration-300 ${i === step ? "text-brand-ink" : "text-ink-3"}`}>
@@ -342,12 +337,11 @@ function StoryDesktop({ forecast }: { forecast: Forecast }) {
 function StoryStacked({ forecast }: { forecast: Forecast }) {
   return (
     <div className={`${WRAP} py-24`}>
-      <Eyebrow n="02">{t("Qanday ishlaydi")}</Eyebrow>
+      <Eyebrow>{t("Qanday ishlaydi")}</Eyebrow>
       <ol className="space-y-16">
         {STEPS.map((s, i) => (
           <Reveal as="li" key={s.title}>
-            <div className="num text-[15px] text-ink-3">0{i + 1} / 03</div>
-            <h3 className="display mt-2 text-[36px] leading-[1.04] font-bold tracking-[-0.04em]">{t(s.title)}</h3>
+            <h3 className="display text-[36px] leading-[1.04] font-bold tracking-[-0.04em]">{t(s.title)}</h3>
             <p className="mt-3 text-[17px] leading-relaxed text-ink-2">{t(s.text)}</p>
             <div className="glass lift-2 mt-6 rounded-[28px] p-4 sm:p-6">
               <div className={i === 2 ? "h-[380px]" : ""}>
@@ -380,7 +374,7 @@ export function SandboxSection() {
   return (
     <section id="sinov" className={`${WRAP} scroll-mt-24 py-24 lg:py-36`} aria-labelledby="sinov-h">
       <Reveal>
-        <Eyebrow n="03">{t("Sinov")}</Eyebrow>
+        <Eyebrow>{t("Sinov")}</Eyebrow>
       </Reveal>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <Reveal i={1}>
@@ -488,7 +482,7 @@ export function Trust() {
       <div className={`${WRAP} grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16`}>
         <div className="lg:sticky lg:top-32 lg:self-start">
           <Reveal>
-            <Eyebrow n="04">{t("Ishonch")}</Eyebrow>
+            <Eyebrow>{t("Ishonch")}</Eyebrow>
           </Reveal>
           <Reveal i={1}>
             <h2 id="ishonch" className={H2S}>
@@ -582,7 +576,7 @@ export function Banks() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
           <div>
             <Reveal>
-              <Eyebrow n="05">{t("Banklar uchun")}</Eyebrow>
+              <Eyebrow>{t("Banklar uchun")}</Eyebrow>
             </Reveal>
             <Reveal i={1}>
               <h2 id="banklar-h" className={H2}>

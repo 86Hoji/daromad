@@ -11,26 +11,6 @@ export function chartStatus(f: Forecast): { text: string; bad: boolean } {
   return { text: t("{day}, {date} — {amount} yetmaydi", { day: capitalize(weekday(red.date)), date: ddmm(red.date), amount: moneyShort(-worst.balance) }), bad: true };
 }
 
-function Legend({ compact }: { compact?: boolean }) {
-  const item = "inline-flex items-center gap-2";
-  return (
-    <ul className={`flex flex-wrap items-center gap-x-5 gap-y-1.5 text-ink-3 ${compact ? "text-[12px]" : "text-[13px]"}`} aria-label={t("Belgilar")}>
-      <li className={item}>
-        <span className="h-[2.5px] w-5 rounded-full bg-[var(--chart-past)]" /> {t("fakt")}
-      </li>
-      <li className={item}>
-        <span className="w-5 border-t-[2.5px] border-dashed border-[var(--chart-future)]" /> {t("prognoz")}
-      </li>
-      <li className={item}>
-        <span className="h-3 w-5 rounded-[4px] bg-[var(--chart-band)] opacity-25" /> {t("oraliq")}
-      </li>
-      <li className={item}>
-        <span className="h-3 w-5 rounded-[4px] bg-neg opacity-30" /> {t("minus")}
-      </li>
-    </ul>
-  );
-}
-
 export function ChartCard({
   forecast,
   compact = false,
@@ -56,7 +36,6 @@ export function ChartCard({
           </h2>
           {status && <p className={`${compact ? "text-[13.5px]" : "text-[15px]"} ${status.bad ? "text-neg-text" : "text-pos-text"}`}>{status.text}</p>}
         </div>
-        {!compact && <Legend />}
       </div>
       {forecast ? <MoneyLine data={forecast} height={h} compact={compact} animate={animate} /> : <ChartSkeleton height={h} />}
     </section>

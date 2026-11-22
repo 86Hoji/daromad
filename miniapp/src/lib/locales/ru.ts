@@ -440,4 +440,6 @@ export const RU: Record<string, string> = {
   "Ovoz bilan ham bo'ladi: «Har oy 5-sanada ijara 3 million»": "Можно и голосом: «Каждый месяц 5-го аренда 3 миллиона»",
   "kecha": "вчера",
   "Yordamchi maoshi": "Зарплата помощнику",
+  // --- Iteration 2 · Block 1 ---
+  "o'tgan davrga nisbatan {pct}%": "к прошлому периоду {pct}%",
 };

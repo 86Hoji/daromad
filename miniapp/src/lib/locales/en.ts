@@ -439,4 +439,6 @@ export const EN: Record<string, string> = {
   "Ovoz bilan ham bo'ladi: «Har oy 5-sanada ijara 3 million»": "Voice works too: “Rent 3 million on the 5th every month”",
   "kecha": "yesterday",
   "Yordamchi maoshi": "Assistant's salary",
+  // --- Iteration 2 · Block 1 ---
+  "o'tgan davrga nisbatan {pct}%": "{pct}% vs previous period",
 };

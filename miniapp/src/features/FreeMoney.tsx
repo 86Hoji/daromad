@@ -77,7 +77,7 @@ export function Formula({ summary }: { summary: Summary }) {
     { label: t("Bo'sh pul"), v: moneyShort(summary.free_money), op: "=", cls: summary.free_money < 0 ? "text-neg-text" : "text-pos-text" },
   ];
   return (
-    <div className="flex flex-wrap items-end gap-x-3.5 gap-y-3">
+    <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
       {parts.map((p) => (
         <div key={p.label} className="flex items-end gap-3.5">
           {p.op && (
@@ -86,15 +86,11 @@ export function Formula({ summary }: { summary: Summary }) {
             </span>
           )}
           <div>
-            <div className="text-[13px] text-ink-3">{p.label}</div>
-            <div className={`num text-[19px] font-semibold ${p.cls ?? ""}`}>{p.v}</div>
+            <div className="text-[13px] leading-5 text-ink-3">{p.label}</div>
+            <div className={`display num mt-1 text-[20px] leading-tight font-semibold whitespace-nowrap xl:text-[22px] ${p.cls ?? ""}`}>{p.v}</div>
           </div>
         </div>
       ))}
-      <div className="ml-auto border-l border-line pl-4">
-        <div className="text-[13px] text-ink-3">{t("Sizga qarz")}</div>
-        <div className="num text-[19px] font-semibold text-warn-text">{moneyShort(summary.total_receivable)}</div>
-      </div>
     </div>
   );
 }
@@ -110,8 +106,8 @@ export function Breakdown({ summary, dense = false }: { summary: Summary; dense?
     <dl className={`grid grid-cols-2 gap-x-6 gap-y-4 ${dense ? "" : "sm:grid-cols-4"}`}>
       {items.map((it) => (
         <div key={it.label} className="min-w-0">
-          <dt className="text-[13px] text-ink-3">{it.label}</dt>
-          <dd className={`num mt-1 truncate text-[17px] font-semibold ${it.tone}`} title={money(it.value)}>
+          <dt className="text-[13px] leading-5 text-ink-3">{it.label}</dt>
+          <dd className={`display num mt-1 truncate text-[20px] leading-tight font-semibold ${it.tone}`} title={money(it.value)}>
             {it.sign && it.value > 0 ? "+" : ""}
             {moneyShort(it.value)}
           </dd>

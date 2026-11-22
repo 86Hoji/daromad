@@ -2,7 +2,6 @@
 import { Bot, Cog, User } from "lucide-react";
 import type { AuditItem, EntriesResp } from "../lib/api";
 import { categoryLabel, ddmm, money, moneyShort, timeHM } from "../lib/format";
-import { AnimatedNumber } from "../ui/AnimatedNumber";
 import { t } from "../lib/i18n";
 
 export function Totals({ entries, dense = false }: { entries: EntriesResp; dense?: boolean }) {
@@ -15,9 +14,9 @@ export function Totals({ entries, dense = false }: { entries: EntriesResp; dense
     <dl className="grid grid-cols-3 gap-4">
       {items.map((it) => (
         <div key={it.label} className="min-w-0">
-          <dt className="text-[13px] text-ink-3">{it.label}</dt>
-          <dd className={`display mt-1 truncate font-semibold ${dense ? "text-[18px]" : "text-[24px] lg:text-[28px]"} ${it.cls}`} title={money(it.v)}>
-            {dense ? moneyShort(it.v) : <AnimatedNumber value={it.v} />}
+          <dt className="text-[13px] leading-5 text-ink-3">{it.label}</dt>
+          <dd className={`display num mt-1 truncate leading-tight font-semibold ${dense ? "text-[20px]" : "text-[22px] xl:text-[26px]"} ${it.cls}`} title={money(it.v)}>
+            {moneyShort(it.v)}
           </dd>
         </div>
       ))}

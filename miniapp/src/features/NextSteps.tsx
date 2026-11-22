@@ -144,7 +144,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
         ) : (
         <Step n={2} tone="brand" icon={<Landmark size={18} strokeWidth={1.75} />} title={rec.covers_by_debts ? t("Qaytmasa — overdraft") : t("Yetmasa — overdraft")} last>
           <p className="num mt-1 text-[14.5px] text-ink-2">
-            {money(od.amount)} · {daysShort(od.term_days)} · {t("ortiqcha")} {money(od.cost)}
+            {moneyShort(od.amount)} · {daysShort(od.term_days)} · {t("ortiqcha")} {moneyShort(od.cost)}
           </p>
           {tg ? (
             <button
@@ -175,7 +175,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
     body = (
       <Step n={1} tone="pos" icon={<Sprout size={18} strokeWidth={1.75} />} title={t("Bo'sh pul ishlasin — omonat")} last>
         <p className="num mt-1 text-[14.5px] text-ink-2">
-          {money(dep.amount)} · {daysShort(dep.term_days)} · {t("daromad")} <span className="text-pos-text">+{money(dep.income)}</span>
+          {moneyShort(dep.amount)} · {daysShort(dep.term_days)} · {t("daromad")} <span className="text-pos-text">+{moneyShort(dep.income)}</span>
         </p>
         <Button className="mt-3" onClick={() => flow.setOffer(dep)}>
           {t("Shartlarni ko'rish")}
@@ -201,7 +201,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
       {low && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-el bg-surface-2/70 px-4 py-3 text-[15px]">
           <span className="text-ink-2">{t("Eng past qoldiq")} · {weekday(low.date)}</span>
-          <span className="num font-semibold">{money(low.balance)}</span>
+          <span className="num font-semibold">{moneyShort(low.balance)}</span>
         </div>
       )}
       {upcoming.length > 0 && (
