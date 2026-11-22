@@ -7,6 +7,8 @@ import { ChartCard } from "../features/ChartCard";
 import { DebtList, maskPhone } from "../features/Debts";
 import { FreeMoney } from "../features/FreeMoney";
 import { NextSteps } from "../features/NextSteps";
+import { NudgeBanner } from "../features/DataQuality";
+import { RecurringButton } from "../features/Recurring";
 import { useReminder } from "../features/Reminder";
 import { AuditList, CategoryBars, Totals, TrustScale } from "../features/Report";
 import { useReport } from "../hooks/useData";
@@ -95,6 +97,11 @@ export function TgHome() {
   return (
     <>
       <Header />
+      {summary.nudge_date && (
+        <div className="mb-4">
+          <NudgeBanner date={summary.nudge_date} compact />
+        </div>
+      )}
       <Rise className="px-1 pb-5">
         <FreeMoney summary={summary} rec={rec} today={forecast.today} size="tg" roll />
       </Rise>
@@ -104,6 +111,7 @@ export function TgHome() {
       <Block className="mt-3" i={2}>
         <NextSteps rec={rec} forecast={forecast} variant="tg" />
       </Block>
+      <RecurringButton className="mt-3 w-full" />
     </>
   );
 }

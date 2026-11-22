@@ -86,6 +86,7 @@ pip install -r backend\requirements.txt
 | `GEMINI_MODEL` | по умолчанию `gemini-flash-latest`. Для новых ключей Google `*-latest` и `gemini-2.5-flash` недоступны — ставьте `gemini-3.8-flash`. Если модель не найдена (404) или перегружена (503/таймаут 25 с), код сам переходит по цепочке `gemini-3.8-flash` → `gemini-3.5-flash-lite`, а упавшую модель пропускает 5 минут |
 | `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | голосовые ответы: по умолчанию `gemini-3.8-flash-tts`, голос `Fola` |
 | `DEMO_RESET` | `1` — разрешает `POST /api/demo/reset` (Ctrl+Shift+R в `/app`), только для демо-бизнеса; по умолчанию `0` |
+| `DEMO_FEED` / `DEMO_FEED_SECONDS` | `1` — mock банковского фида: раз в 60 с (по умолчанию) в демо-бизнес приходит безналичная продажа на 10–50 тыс. (UzQR / терминал, метка «tasdiqlangan»), видно в живой ленте `/app`; по умолчанию `0` |
 | `VOICE_REPLIES` | `1` (по умолчанию) — на вопрос, заданный голосом, бот отвечает текстом и голосовым; `0` — только текст |
 | `WEBAPP_URL` | https-адрес Mini App **с путём `/tg`** (например `https://<проект>.vercel.app/tg`), даёт кнопку-меню «Hisobim»; можно оставить пустым |
 | `DEV_SHOP_ID` | бизнес для API без Telegram-заголовка (демо), по умолчанию `1` |

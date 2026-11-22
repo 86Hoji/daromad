@@ -21,6 +21,9 @@ VOICE_REPLIES: bool = os.getenv("VOICE_REPLIES", "1").strip() not in ("0", "fals
 
 # POST /api/demo/reset (кнопка «Demo reset» в /app): только для DEV_SHOP_ID и только при DEMO_RESET=1
 DEMO_RESET: bool = os.getenv("DEMO_RESET", "0").strip() in ("1", "true", "yes")
+# mock банковского фида: раз в DEMO_FEED_SECONDS — небольшая безналичная продажа (UzQR/терминал) для DEV_SHOP_ID
+DEMO_FEED: bool = os.getenv("DEMO_FEED", "0").strip() in ("1", "true", "yes")
+DEMO_FEED_SECONDS: int = int(os.getenv("DEMO_FEED_SECONDS", "60") or 60)
 
 
 def env(name: str, default: str = "") -> str:

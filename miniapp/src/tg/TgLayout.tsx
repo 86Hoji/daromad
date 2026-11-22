@@ -58,6 +58,18 @@ function TgComposer() {
     if (typing) input.current?.focus();
   }, [typing]);
 
+  // «Дописать» из баннера пропущенного дня
+  useEffect(() => {
+    const on = (e: Event) => {
+      const prefill = (e as CustomEvent<{ prefill?: string }>).detail?.prefill ?? "";
+      if (prefill) v.setText(prefill);
+      setTyping(true);
+    };
+    window.addEventListener("flowcast:write", on);
+    return () => window.removeEventListener("flowcast:write", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const bottom = `calc(${TAB_H + 14}px + env(safe-area-inset-bottom))`;
 
   return (

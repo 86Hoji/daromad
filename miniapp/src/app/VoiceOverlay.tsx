@@ -9,6 +9,7 @@ import { useVoiceInput } from "../hooks/useVoiceInput";
 import { api, ApiError, type Draft, type ProcessResult } from "../lib/api";
 import { capitalize, ddmm, money, weekday } from "../lib/format";
 import { DRAFT_TYPE, draftTitle } from "../features/Drafts";
+import { recurringWhen } from "../features/Recurring";
 import { t, tMaybe } from "../lib/i18n";
 import { useMagnet } from "../lib/fx";
 import { useLive } from "../lib/live";
@@ -18,6 +19,8 @@ import { Chip } from "../ui/bits";
 import { toast } from "../ui/Toast";
 
 function fullTitle(d: Draft): string {
+  if (d.type === "recurring_payment" && d.period && d.day != null) return `${draftTitle(d)} · ${recurringWhen({ period: d.period, day: d.day })}`;
+  if ((d.type === "sale" || d.type === "expense") && d.date) return `${draftTitle(d)} · ${ddmm(d.date)}`;
   return d.type === "scheduled_payment" && d.due_date ? `${draftTitle(d)} · ${capitalize(weekday(d.due_date))}, ${ddmm(d.due_date)}` : draftTitle(d);
 }
 
@@ -90,6 +93,19 @@ export function VoiceOverlay() {
   useEffect(() => {
     if (phase === "type" && typing) input.current?.focus();
   }, [phase, typing]);
+
+  // «Дописать» из баннера пропущенного дня: открыть ввод текстом с началом фразы
+  useEffect(() => {
+    const on = (e: Event) => {
+      const prefill = (e as CustomEvent<{ prefill?: string }>).detail?.prefill ?? "";
+      v.clearResult();
+      if (prefill) v.setText(prefill);
+      setTyping(true);
+    };
+    window.addEventListener("flowcast:write", on);
+    return () => window.removeEventListener("flowcast:write", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const confirm = async () => {
     if (!r) return;

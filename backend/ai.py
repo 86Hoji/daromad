@@ -38,6 +38,9 @@ class AIEvent(BaseModel):
     phone: Optional[str] = None
     category: Optional[str] = None
     due_date: Optional[str] = None
+    date: Optional[str] = None
+    period: Optional[str] = None
+    day: Optional[int] = None
     note: Optional[str] = None
 
 
@@ -71,6 +74,13 @@ events[].type:
 - "debt_returned" — mijoz qarzini qaytardi ("qarzini berdi", "qaytardi", "вернул долг"). person majburiy.
 - "scheduled_payment" — kelajakdagi to'lov ("payshanba kuni yetkazib beruvchiga 3 million", "в четверг аренда").
   due_date majburiy (YYYY-MM-DD), note = nima uchun (masalan "yetkazib beruvchi"), person = kimga (ismi aytilsa).
+- "recurring_payment" — har oy / har hafta takrorlanadigan to'lov ("har oy 5-sanada ijara 3 million",
+  "har shanba yordamchiga 600 ming maosh", "каждый месяц 10-го коммуналка 400 тысяч", "по пятницам зарплата").
+  period = "monthly" (har oy) yoki "weekly" (har hafta); day = oy kuni 1..31 (monthly) yoki hafta kuni
+  0=dushanba ... 6=yakshanba (weekly); category = ijara | maosh | kommunal | boshqa; note = nima uchun.
+
+date (faqat sale/expense uchun) — agar egasi o'tgan kunni aytsa ("kecha", "вчера", "dushanba kuni sotdim"),
+o'sha sana YYYY-MM-DD; bugungi yozuv bo'lsa null. "kecha"/"вчера" = {yesterday}.
 
 amount — butun son, so'mda. Misollar: "150 ming" = 150000, "2 million 300 ming" = 2300000,
 "bir yarim million" = 1500000, "yarim million" = 500000, "1,5 mln" = 1500000, "ikki yuz ellik ming" = 250000,
@@ -228,7 +238,8 @@ def _week_table(today: date) -> str:
 def build_prompt(today: date) -> str:
     return PROMPT.format(
         today=today.isoformat(), today_wd=WEEKDAYS_UZ[today.weekday()], week_table=_week_table(today),
-        tomorrow=(today + timedelta(days=1)).isoformat(), after_tomorrow=(today + timedelta(days=2)).isoformat())
+        tomorrow=(today + timedelta(days=1)).isoformat(), after_tomorrow=(today + timedelta(days=2)).isoformat(),
+        yesterday=(today - timedelta(days=1)).isoformat())
 
 
 # --- сверка сумм парсером -----------------------------------------------------------

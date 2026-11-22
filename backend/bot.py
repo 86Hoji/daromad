@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -109,11 +109,17 @@ def event_line(ev: dict, lang: str) -> str:
             line += f" (📞 {mask_phone(ev['phone'])})"
     elif t == "debt_returned":
         line = f"↩️ {_('{person} qarzini qaytardi', lang, person=person)} — <b>{amt}</b>"
+    elif t == "recurring_payment":
+        when = texts.recurring_when(ev["period"], ev["day"], lang)
+        label = _("Doimiy to'lov", lang)
+        line = f"🔁 {label}: {esc(ev.get('note'))} — <b>{amt}</b>, {esc(when)}"
     else:
         who = esc(ev.get("note") or ev.get("person") or _("to'lov", lang))
         d = _date(ev["due_date"])
         pay = _("To'lov", lang)
         line = f"📅 {pay}: {who} — <b>{amt}</b>, {texts.weekday(d, lang)} ({d.strftime('%d.%m')})"
+    if t in ("sale", "expense") and ev.get("date"):
+        line += f" · 📆 {_date(ev['date']).strftime('%d.%m')}"
     line += f" · <i>{_(ev.get('trust') or db.trust_label(ev.get('source')), lang)}</i>"
     if ev.get("needs_check"):
         line += f"\n   ⚠️ {_('summani tekshiring', lang)}"
@@ -157,7 +163,13 @@ def recommendation_message(shop_id: int, lang: str) -> tuple[str, InlineKeyboard
             rows.append([(_("📨 Qarzdorlarga eslatma", lang), "rem")])
         if rec.get("offers_allowed", True):
             rows.append([(_("🏦 Overdraft shartlari", lang), "od")])
+        else:
+            text += "\n\n" + _("Ma'lumot kam — bank takliflari yashirildi. Naqd savdo va xarajatlarni yozib boring.", lang)
         return text, kb(*rows)
+    if rec["kind"] == "surplus" and not rec.get("offers_allowed", True):
+        text = _("✅ {label} yetadi. Bo'sh pul: <b>{free}</b>.", lang, label=label, free=money(rec["free_money"], lang))
+        return text + "\n\n" + _("Ma'lumot kam — bank takliflari yashirildi. Naqd savdo va xarajatlarni yozib boring.",
+                                 lang), None
     if rec["kind"] == "surplus":
         dep = rec["deposit"]
         text = _("✅ {label} ham yetadi, bo'sh pul: <b>{free}</b>.\n{amount}ni omonatga qo'ysangiz, {days}da ~{income} daromad.",
@@ -181,9 +193,8 @@ def status_text(shop: dict, lang: str) -> str:
             for p in fm["payments"]))
     if fm["total_receivable"]:
         lines.append(_("Sizga qarz: {total}", lang, total=money(fm["total_receivable"], lang)))
-    rel = logic.reliability(shop["id"]) if hasattr(logic, "reliability") else None
-    if rel:
-        lines.append(_("Ma'lumot ishonchliligi: {pct}%", lang, pct=rel["percent"]))
+    rel = logic.reliability(shop["id"])
+    lines.append(_("Hisob {pct}% ma'lumotga asoslangan", lang, pct=rel["percent"]))
     return "\n".join(lines)
 
 
@@ -392,32 +403,12 @@ async def run_pipeline(message: Message, *, text: str | None = None, audio: byte
         if source == "voice" and config.VOICE_REPLIES and result.get("voice_text"):
             await send_voice_reply(message, result["voice_text"], lang)
         return
-    if result.get("recurring"):
-        await wait.edit_text(recurring_text(result["recurring"], lang))
-        return
     if not result["drafts"]:
         msg = "\n".join(f"❗ {esc(e)}" for e in result["errors"])
         await wait.edit_text(msg + "\n\n" + _("Iltimos, aniqroq qilib qayta yuboring.", lang))
         return
     await wait.edit_text(card_text(result, lang), reply_markup=kb(
         [(_("✅ To'g'ri", lang), f"ok:{result['batch_id']}"), (_("✏️ Tuzatish", lang), f"fix:{result['batch_id']}")]))
-
-
-def recurring_text(items: list[dict], lang: str) -> str:
-    """Подтверждение сохранённого шаблона регулярного платежа («har oy 5-sanada ijara 3 million»)."""
-    title = _("Doimiy to'lov saqlandi:", lang)
-    lines = [f"🔁 <b>{title}</b>"]
-    for r in items:
-        lines.append(f"• {esc(r['title'])} — <b>{exact(r['amount'], lang)}</b>, {esc(recurring_when(r, lang))}")
-    lines.append(_("Prognozda hisobga olinadi. O'zgartirish — ilovada «Doimiy to'lovlar».", lang))
-    return "\n".join(lines)
-
-
-def recurring_when(r: dict, lang: str) -> str:
-    if r["period"] == "weekly":
-        wd = texts.WEEKDAYS[lang][int(r["day"])]
-        return _("har {weekday}", lang, weekday=wd)
-    return _("har oy {day}-sanada", lang, day=r["day"])
 
 
 @router.message(StateFilter(None), F.voice | F.audio)
@@ -608,6 +599,58 @@ async def cb_offer(cq: CallbackQuery) -> None:
     else:
         note = _("Rad etildi.", lang)
     await cq.message.edit_text(cq.message.html_text + f"\n\n{note}", reply_markup=None)
+
+
+# --- утренний вопрос про пропущенный день -------------------------------------------
+
+TASHKENT = timezone(timedelta(hours=5))
+NUDGE_HOUR = 9               # после 9:00 по Ташкенту, один раз в день
+
+
+def nudge_text(lang: str) -> tuple[str, InlineKeyboardMarkup]:
+    return (_("Kecha naqd pul bo'yicha yozuv yo'q. Yozib qo'yamizmi?", lang),
+            kb([(_("✍️ Yozib qo'yish", lang), "nudge")]))
+
+
+def due_nudges(now: datetime | None = None) -> list[dict]:
+    """Магазины, которым пора задать утренний вопрос. Помечает nudged_on=сегодня у всех проверенных,
+    чтобы спрашивать не чаще раза в день. Ничего не дописывает."""
+    now = now or datetime.now(TASHKENT)
+    if now.hour < NUDGE_HOUR:
+        return []
+    today = now.date()
+    out = []
+    for shop in db.query("SELECT * FROM shops WHERE tg_user_id IS NOT NULL AND (nudged_on IS NULL OR nudged_on<>?)",
+                         (today.isoformat(),)):
+        db.execute("UPDATE shops SET nudged_on=? WHERE id=?", (today.isoformat(), shop["id"]))
+        if logic.missing_yesterday(shop["id"], today):
+            out.append(shop)
+    return out
+
+
+async def nudge_loop(bot: Bot, every: int = 600) -> None:
+    while True:
+        try:
+            for shop in due_nudges():
+                lang = shop.get("lang") if shop.get("lang") in texts.LANGS else texts.DEFAULT_LANG
+                text, markup = nudge_text(lang)
+                try:
+                    await bot.send_message(shop["tg_user_id"], text, reply_markup=markup)
+                except Exception:
+                    log.warning("nudge yuborilmadi: shop %s", shop["id"], exc_info=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("nudge_loop")
+        await asyncio.sleep(every)
+
+
+@router.callback_query(F.data == "nudge")
+async def cb_nudge(cq: CallbackQuery) -> None:
+    lang = user_lang(cq.from_user.id)
+    await cq.answer()
+    await cq.message.edit_reply_markup(reply_markup=None)
+    await cq.message.answer(_("Kechagi naqd savdo va xarajatlarni yozing yoki ovoz bilan ayting. Masalan: «Kecha naqdga 1 million 200 ming sotdim, 150 ming paketga ketdi».", lang))
 
 
 # --- уведомления владельцу из extras (оплата по ссылке) ----------------------------

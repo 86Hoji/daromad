@@ -43,15 +43,23 @@ async def lifespan(app: FastAPI):
     if not config.GEMINI_API_KEY:
         log.warning("GEMINI_API_KEY bo'sh — ovoz/matnni tanish ishlamaydi.")
     task = bot = dp = None
+    background: list[asyncio.Task] = []
     if config.BOT_TOKEN:
-        from bot import create_bot
+        from bot import create_bot, nudge_loop
         bot, dp = create_bot()
         task = asyncio.create_task(_run_bot(bot, dp))
+        background.append(asyncio.create_task(nudge_loop(bot)))      # утренний вопрос про пропущенный день
     else:
         log.warning("BOT_TOKEN bo'sh — faqat API ishlaydi.")
+    if config.DEMO_FEED:
+        import bank_feed
+        log.info("DEMO_FEED: har %s s — karta/QR savdo (mock)", config.DEMO_FEED_SECONDS)
+        background.append(asyncio.create_task(bank_feed.feed_loop()))
     try:
         yield
     finally:
+        for t in background:
+            t.cancel()
         adapters.set_notifier(None)
         if task:
             try:

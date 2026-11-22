@@ -61,6 +61,31 @@ export interface Payment {
   counterparty: string | null;
   amount: number;
   due_date: string;
+  /** платёж по шаблону регулярного платежа (аренда, зарплата…) */
+  recurring?: boolean;
+}
+
+/** «Посчитано по N% данных»: доля подтверждённых денег, регулярность записей, дни без записей. */
+export interface Reliability {
+  percent: number;
+  low: boolean;
+  window_days: number;
+  confirmed_share: number;
+  regularity: number;
+  coverage: number;
+  missing_days: number;
+  missing_dates: string[];
+}
+
+export interface RecurringItem {
+  id: number;
+  title: string;
+  category: string;
+  amount: number;
+  period: "monthly" | "weekly";
+  /** monthly: 1..31; weekly: 0=пн..6=вс */
+  day: number;
+  next_date: string | null;
 }
 
 export interface PeriodTotals {
@@ -85,6 +110,9 @@ export interface Summary {
   top_debtors: Debtor[];
   periods: Record<"today" | "week" | "month", PeriodTotals>;
   trust_share: Record<string, number>;
+  reliability?: Reliability;
+  /** вчера (ISO), если за вчера нет записей по наличным — «Дописать?» */
+  nudge_date?: string | null;
 }
 
 export interface FcEvent {
@@ -95,6 +123,7 @@ export interface FcEvent {
   amount: number;
   date?: string;
   overdue?: boolean;
+  recurring?: boolean;
 }
 
 export interface ForecastDay {
@@ -143,6 +172,9 @@ interface RecBase {
   horizon: string;
   horizon_weekday: string;
   cash_now: number;
+  /** false — данных < 50%: банковские предложения не показываем */
+  offers_allowed?: boolean;
+  reliability?: number;
 }
 
 export type Recommendation = RecBase &
@@ -185,7 +217,7 @@ export interface Draft {
   batch_id: string;
   source: string;
   trust: string;
-  type: "sale" | "expense" | "debt_given" | "debt_returned" | "scheduled_payment";
+  type: "sale" | "expense" | "debt_given" | "debt_returned" | "scheduled_payment" | "recurring_payment";
   amount: number;
   person: string | null;
   phone: string | null;
@@ -193,6 +225,10 @@ export interface Draft {
   due_date: string | null;
   note: string | null;
   needs_check: boolean;
+  /** sale/expense за прошлый день («kecha sotdim») */
+  date?: string | null;
+  period?: "monthly" | "weekly";
+  day?: number;
 }
 
 export interface ProcessResult {
@@ -317,6 +353,12 @@ export const api = {
   demoReset: () => post<{ ok: boolean; free_money: number }>("/api/demo/reset"),
   confirm: (ids: number[]) => post<{ confirmed: unknown[]; errors: string[] }>("/api/entries/confirm", { ids }),
   reject: (ids: number[]) => post<{ rejected: number }>("/api/entries/reject", { ids }),
+
+  recurring: () => request<{ items: RecurringItem[] }>("/api/recurring"),
+  recurringCreate: (body: Omit<RecurringItem, "id" | "next_date">) => post<RecurringItem>("/api/recurring", body),
+  recurringUpdate: (id: number, body: Partial<Omit<RecurringItem, "id" | "next_date">>) =>
+    request<RecurringItem>(`/api/recurring/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  recurringDelete: (id: number) => request<{ ok: boolean }>(`/api/recurring/${id}`, { method: "DELETE" }),
 
   acceptOffer: (type: "overdraft" | "deposit", amount: number, term_days: number) =>
     post<OfferResult>("/api/offers/accept", { type, amount, term_days }),

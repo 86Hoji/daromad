@@ -108,6 +108,18 @@ def until_day(iso: str, lang: str, today: date | None = None) -> str:
     return d.strftime("%d.%m") + " gacha"
 
 
+_RU_DAT_PL = ["по понедельникам", "по вторникам", "по средам", "по четвергам", "по пятницам", "по субботам",
+               "по воскресеньям"]
+
+
+def recurring_when(period: str, day: int, lang: str) -> str:
+    """«har oy 5-sanada» / «каждый месяц 5-го числа»; «har shanba» / «по субботам»."""
+    day = int(day)
+    if period == "weekly":
+        return _RU_DAT_PL[day] if lang == "ru" else f"har {WEEKDAYS['uz'][day]}"
+    return f"каждый месяц {day}-го числа" if lang == "ru" else f"har oy {day}-sanada"
+
+
 def ru_plural(n: int, one: str, few: str, many: str) -> str:
     m10, m100 = n % 10, n % 100
     if m10 == 1 and m100 != 11:
@@ -201,6 +213,22 @@ RU: dict[str, str] = {
     "Hozir sizga hech kim qarz emas. 👍": "Сейчас вам никто не должен. 👍",
     "Sizga jami <b>{total}</b> qarz bor:": "Вам должны всего <b>{total}</b>:",
     "Ma'lumot ishonchliligi: {pct}%": "Надёжность данных: {pct}%",
+    "Hisob {pct}% ma'lumotga asoslangan": "Посчитано по {pct}% данных",
+    "Doimiy to'lov": "Регулярный платёж",
+    "Kecha naqd pul bo'yicha yozuv yo'q. Yozib qo'yamizmi?": "За вчера нет записей по наличным. Дописать?",
+    "✍️ Yozib qo'yish": "✍️ Дописать",
+    "Kechagi naqd savdo va xarajatlarni yozing yoki ovoz bilan ayting. Masalan: «Kecha naqdga 1 million 200 ming sotdim, 150 ming paketga ketdi».":
+        "Напишите или скажите голосом вчерашние продажи и расходы наличными. Например: «Вчера продал за наличные на 1 миллион 200 тысяч, 150 тысяч ушло на пакеты».",
+    "Ma'lumot kam — bank takliflari yashirildi. Naqd savdo va xarajatlarni yozib boring.":
+        "Данных мало — банковские предложения скрыты. Дополните данные: записывайте наличные продажи и расходы.",
+    "Davr noto'g'ri: har oy yoki har hafta.": "Неверный период: каждый месяц или каждую неделю.",
+    "Kunni ko'rsating.": "Укажите день.",
+    "Oy kuni 1 dan 31 gacha bo'lishi kerak.": "День месяца должен быть от 1 до 31.",
+    "Hafta kuni noto'g'ri.": "Неверный день недели.",
+    "Sana kelajakda bo'lishi mumkin emas.": "Дата не может быть в будущем.",
+    "Faqat oxirgi 30 kun uchun yozish mumkin.": "Дописать можно только за последние 30 дней.",
+    "Doimiy to'lov topilmadi": "Регулярный платёж не найден",
+    "kecha": "вчера",
 
     # --- бот: /start, онбординг, помощь ------------------------------------------------
     "Assalomu alaykum! Men <b>Flowcast</b> — kichik va mikro biznes uchun ovozli moliyaviy yordamchiman. "

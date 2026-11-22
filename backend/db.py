@@ -110,6 +110,21 @@ CREATE TABLE IF NOT EXISTS pay_links (
     sms_id TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_pay_links_debt ON pay_links(debt_id);
+
+-- шаблоны регулярных платежей: аренда, зарплата, коммуналка (monthly: day 1..31, weekly: day 0=пн..6=вс)
+CREATE TABLE IF NOT EXISTS recurring_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'boshqa',
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    period TEXT NOT NULL CHECK (period IN ('monthly','weekly')),
+    day INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    source TEXT NOT NULL DEFAULT 'app',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_recurring_shop ON recurring_payments(shop_id, active);
 """
 
 # Денежные потоки вне P&L: принятые банковские офферы (овердрафт, вклад) и изъятия владельца.

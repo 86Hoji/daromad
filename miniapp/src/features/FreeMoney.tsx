@@ -3,6 +3,7 @@ import type { Recommendation, Summary } from "../lib/api";
 import { capitalize, currency, ddmm, money, moneyShort, num, onDay, untilLabel } from "../lib/format";
 import { pick, t } from "../lib/i18n";
 import { AnimatedNumber } from "../ui/AnimatedNumber";
+import { ReliabilityLine } from "./DataQuality";
 
 /** Одна фраза, почему цифра такая. Без цифр, которые не посчитал код. */
 export function explain(summary: Summary, rec: Recommendation | null, today: string): string {
@@ -60,6 +61,7 @@ export function FreeMoney({
         <AnimatedNumber value={summary.free_money} roll={roll} />
         <span className="font-sans text-[0.28em] font-medium tracking-normal text-ink-3">{currency()}</span>
       </div>
+      <ReliabilityLine rel={summary.reliability} className="mt-3" />
       <p className={`mt-4 max-w-[52ch] text-ink-2 ${big ? "text-[18px]" : "text-[15px]"}`}>{explain(summary, rec, today)}</p>
     </div>
   );

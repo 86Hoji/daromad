@@ -1,6 +1,6 @@
 // «Keyingi qadam» из /api/recommendation:
 // нехватка -> 1) напомнить должникам, 2) овердрафт, если долгов не хватит; излишек -> вклад.
-import { BellRing, ChevronRight, Landmark, ShieldCheck, Sprout } from "lucide-react";
+import { BellRing, ChevronRight, Landmark, NotebookPen, Repeat, ShieldCheck, Sprout } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Deposit, type Forecast, type Overdraft, type Recommendation } from "../lib/api";
@@ -12,6 +12,7 @@ import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { toast } from "../ui/Toast";
 import { useReminder } from "./Reminder";
+import { FillDataNote } from "./DataQuality";
 import { t } from "../lib/i18n";
 
 type Offer = Overdraft | Deposit;
@@ -88,6 +89,8 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
   const today = forecast?.today ?? rec.horizon;
   const activeOverdraft = forecast?.events.find((e) => e.type === "overdraft_repay");
   const tg = variant === "tg";
+  // данных < 50% — банковские предложения (овердрафт, вклад) не показываем, просим дополнить данные
+  const offersOk = rec.offers_allowed !== false;
 
   let body: ReactNode;
   if (rec.kind === "shortage") {
@@ -134,6 +137,11 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
             </ul>
           )}
         </Step>
+        {!offersOk ? (
+          <Step n={2} tone="brand" icon={<NotebookPen size={18} strokeWidth={1.75} />} title={t("Ma'lumotni to'ldiring")} last>
+            <FillDataNote rel={rec.reliability} />
+          </Step>
+        ) : (
         <Step n={2} tone="brand" icon={<Landmark size={18} strokeWidth={1.75} />} title={rec.covers_by_debts ? t("Qaytmasa — overdraft") : t("Yetmasa — overdraft")} last>
           <p className="num mt-1 text-[14.5px] text-ink-2">
             {money(od.amount)} · {daysShort(od.term_days)} · {t("ortiqcha")} {money(od.cost)}
@@ -153,7 +161,14 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
             </Button>
           )}
         </Step>
+        )}
       </>
+    );
+  } else if (rec.kind === "surplus" && !offersOk) {
+    body = (
+      <Step n={1} tone="brand" icon={<NotebookPen size={18} strokeWidth={1.75} />} title={t("Ma'lumotni to'ldiring")} last>
+        <FillDataNote rel={rec.reliability} />
+      </Step>
     );
   } else if (rec.kind === "surplus") {
     const dep = rec.deposit;
@@ -197,6 +212,7 @@ export function NextSteps({ rec, forecast, variant = "app" }: { rec: Recommendat
               <li key={`${e.id}-${e.date}`} className="flex items-center justify-between gap-3 py-2.5 text-[15px]">
                 <span className="min-w-0 truncate">
                   <span className="num text-ink-3">{ddmm(e.date)}</span> · {eventTitle(e)}
+                  {e.recurring && <Repeat size={13} strokeWidth={2} className="ml-1.5 inline align-[-1px] text-ink-3" aria-label={t("doimiy")} />}
                 </span>
                 <span className={`num shrink-0 font-medium ${isOutflow(e) ? "" : "text-pos-text"}`}>
                   {isOutflow(e) ? "−" : "+"}

@@ -11,13 +11,15 @@ from datetime import date, datetime, timedelta
 import ai
 import db
 import logic
+import recurring
 import texts
 import tts
 from logic import EXPENSE_CATEGORIES, round1000
 
 log = logging.getLogger("flowcast.pipeline")
 
-EVENT_TYPES = ("sale", "expense", "debt_given", "debt_returned", "scheduled_payment")
+EVENT_TYPES = ("sale", "expense", "debt_given", "debt_returned", "scheduled_payment", "recurring_payment")
+BACKDATE_DAYS = 30          # «kecha sotdim» — дописать можно за последние 30 дней
 MAX_AMOUNT = 1_000_000_000
 SOURCES = ("voice", "text", "photo", "bank", "link")
 
@@ -53,6 +55,25 @@ def validate_event(ev: dict, today: date | None = None) -> tuple[dict | None, st
     if t in ("sale", "expense"):
         cat = (ev.get("category") or "").strip().lower()
         out["category"] = cat if cat in EXPENSE_CATEGORIES else ("tovar" if t == "sale" else "boshqa")
+        raw = ev.get("date")
+        if raw:
+            try:
+                when = datetime.strptime(str(raw)[:10], "%Y-%m-%d").date()
+            except ValueError:
+                when = today
+            if when > today:
+                return None, "Sana kelajakda bo'lishi mumkin emas."
+            if (today - when).days > BACKDATE_DAYS:
+                return None, "Faqat oxirgi 30 kun uchun yozish mumkin."
+            if when < today:
+                out["date"] = when.isoformat()
+    if t == "recurring_payment":
+        try:
+            v = recurring.validate({"period": ev.get("period"), "day": ev.get("day"), "amount": amount,
+                                    "category": ev.get("category"), "title": ev.get("note")})
+        except recurring.RecurringError as exc:
+            return None, str(exc)
+        out.update(category=v["category"], period=v["period"], day=v["day"], note=v["title"])
     if t in ("debt_given", "debt_returned") and not person:
         return None, "Kim qarz olgani/qaytargani aniq emas — ismini ayting."
     if t == "scheduled_payment":
@@ -240,11 +261,12 @@ def _materialize(shop_id: int, d: dict, today: date) -> dict:
                     is_sched, paid_id = 1, p["id"]
                     break
         note = d.get("note") or d.get("person")
+        when = d.get("date") or day        # «kecha» — запись за вчера (дописанный пропуск)
         eid = db.execute(
             "INSERT INTO entries (shop_id, kind, amount, category, note, date, source, status, is_scheduled, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (shop_id, t, amount, d["category"], note, day, source, "confirmed", is_sched, now))
-        return {"type": t, "entry_id": eid, "amount": amount, "scheduled_payment_paid": paid_id}
+            (shop_id, t, amount, d["category"], note, when, source, "confirmed", is_sched, now))
+        return {"type": t, "entry_id": eid, "amount": amount, "scheduled_payment_paid": paid_id, "date": when}
 
     if t == "debt_given":
         did = db.execute(
@@ -285,6 +307,14 @@ def _materialize(shop_id: int, d: dict, today: date) -> dict:
             "VALUES (?,?,?,?,?,?, 'pending')",
             (shop_id, title, d.get("person") or d.get("note"), amount, d["due_date"], source))
         return {"type": t, "payment_id": pid, "amount": amount, "due_date": d["due_date"]}
+
+    if t == "recurring_payment":
+        try:
+            r = recurring.create(shop_id, {"title": d.get("note"), "category": d.get("category"), "amount": amount,
+                                           "period": d.get("period"), "day": d.get("day")}, source=source)
+        except recurring.RecurringError as exc:
+            raise ValueError(str(exc)) from None
+        return {"type": t, "recurring_id": r["id"], "amount": amount, "period": r["period"], "day": r["day"]}
 
     raise ValueError(f"Noma'lum tur: {t}")
 

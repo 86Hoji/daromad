@@ -50,6 +50,7 @@ def wipe(shop_id: int) -> int | None:
     tg_user_id = shop["tg_user_id"] if shop else None
     with db.connect() as conn:
         for table in ("pay_links", "debt_payments", "drafts", "entries", "debts", "scheduled_payments", "cash_flows", "offers",
+                      "recurring_payments",
                       "audit_log"):
             conn.execute(f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
         conn.execute("DELETE FROM shops WHERE id=?", (shop_id,))
@@ -127,6 +128,13 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
             "INSERT INTO scheduled_payments (shop_id, title, counterparty, amount, due_date, source, status) "
             "VALUES (?,?,?,?,?,?, 'pending')",
             (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, thu.isoformat(), "voice"))
+
+        # шаблон регулярного платежа: зарплата помощнику по субботам — как в истории выше.
+        # Аренду (1-го числа) владелец добавляет на демо сам: «Har oy 1-sanada ijara 2 million 500 ming».
+        for title, category, amount, period, day in (("Yordamchi maoshi", "maosh", WEEKLY_PAY, "weekly", 5),):
+            conn.execute(
+                "INSERT INTO recurring_payments (shop_id, title, category, amount, period, day, active, source, created_at) "
+                "VALUES (?,?,?,?,?,?,1,'app',?)", (shop_id, title, category, amount, period, day, ts(start)))
 
     # Калибровка. Прибыльный бизнес 30 дней назад имел бы меньше денег, чем сейчас, поэтому владелец
     # по средам, воскресеньям и вчера вечером забирает часть денег домой (owner_draw: вне P&L, прибыль не уменьшает).

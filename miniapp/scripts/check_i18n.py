@@ -44,7 +44,7 @@ EXTRA = [
     "Overdraft — bu qarz. Muddatida qaytarilmasa, kechiktirilgan har bir kun uchun qo'shimcha foiz olinadi va kredit tarixingiz yomonlashadi.",
     "Muddatidan oldin yechilsa, foiz yillik 5% gacha kamayadi.",
     "Overdraft tushumi", "Overdraftni qaytarish", "Omonatga o'tkazish", "Omonat qaytishi", "Egasi oldi",
-    "Akmal — tovar uchun", "Ijara", "Ijara to'lovi", "Kommunal to'lovlar", "Maosh", "Tovar uchun",
+    "Akmal — tovar uchun", "Ijara", "Ijara to'lovi", "Kommunal to'lovlar", "Maosh", "Tovar uchun", "Yordamchi maoshi",
 ]
 for k in EXTRA:
     keys.setdefault(k, "backend")

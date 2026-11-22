@@ -6,6 +6,8 @@ import { DebtList, DebtTable } from "../features/Debts";
 import { LiveFeed } from "../features/Feed";
 import { Formula, FreeMoney } from "../features/FreeMoney";
 import { NextSteps } from "../features/NextSteps";
+import { NudgeBanner } from "../features/DataQuality";
+import { RecurringButton } from "../features/Recurring";
 import { AuditList, CategoryBars, Totals, TrustScale } from "../features/Report";
 import { useFeed, useReport } from "../hooks/useData";
 import { useLive } from "../lib/live";
@@ -43,7 +45,7 @@ function TrustLine({ share }: { share: Record<string, number> }) {
   const ok = Math.round((share["tasdiqlangan"] ?? 0) * 100);
   const shot = Math.round((share["skrinshot"] ?? 0) * 100);
   return (
-    <Link to="/app/hisobot" className="flex items-center gap-4 rounded-el bg-surface-2/70 px-4 py-3 transition hover:bg-surface-2">
+    <Link to="/app/hisobot" className="flex w-full min-w-0 items-center gap-4 rounded-el bg-surface-2/70 px-4 py-3 transition hover:bg-surface-2">
       <span className="flex h-2 w-28 shrink-0 gap-[2px] overflow-hidden rounded-full" aria-hidden>
         <span className="rounded-full bg-ink" style={{ width: `${ok}%` }} />
         {shot > 0 && <span className="rounded-full bg-brand" style={{ width: `${shot}%` }} />}
@@ -79,14 +81,20 @@ export function AppHome() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:gap-7">
+      {summary.nudge_date && (
+        <div className="xl:col-span-2">
+          <NudgeBanner date={summary.nudge_date} />
+        </div>
+      )}
       <Rise i={0} as="section" className="glass lift-2 flex flex-col p-7 xl:p-8" >
         <h2 className="sr-only">{t("Bo'sh pul")}</h2>
         <FreeMoney summary={summary} rec={rec} today={today} roll />
         <div className="mt-8">
           <Formula summary={summary} />
         </div>
-        <div className="mt-auto pt-8">
+        <div className="mt-auto flex flex-col items-start gap-2 pt-8">
           <TrustLine share={summary.trust_share} />
+          <RecurringButton />
         </div>
       </Rise>
 

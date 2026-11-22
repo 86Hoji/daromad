@@ -21,6 +21,7 @@ import config
 import db
 import logic
 import pipeline
+import recurring
 import texts
 import tts
 
@@ -126,6 +127,9 @@ def summary(shop: dict = Depends(current_shop)) -> dict:
         "top_debtors": fm["top_debtors"],
         "periods": {p: logic.totals(shop["id"], p) for p in ("today", "week", "month")},
         "trust_share": logic.trust_share(shop["id"]),
+        # «посчитано по N% данных» и вопрос «за вчера нет записей по наличным — дописать?»
+        "reliability": logic.reliability(shop["id"]),
+        "nudge_date": logic.missing_yesterday(shop["id"]),
     })
 
 
@@ -295,3 +299,47 @@ def offers_decline(body: OfferIn, shop: dict = Depends(current_shop)) -> dict:
         return pipeline.decline_offer(shop["id"], body.type, body.amount, body.term_days)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# --- регулярные платежи (шаблоны) ----------------------------------------------------
+
+class RecurringIn(BaseModel):
+    title: str | None = Field(default=None, max_length=80)
+    category: str | None = None
+    amount: int | None = None
+    period: Literal["monthly", "weekly"] | None = None
+    day: int | None = None
+
+
+@router.get("/recurring")
+def recurring_list(shop: dict = Depends(current_shop)) -> dict:
+    today = date.today()
+    return {"items": [recurring.view(t, today) for t in recurring.templates(shop["id"])]}
+
+
+@router.post("/recurring")
+def recurring_create(body: RecurringIn, shop: dict = Depends(current_shop), lang: str = Depends(ui_lang)) -> dict:
+    try:
+        t = recurring.create(shop["id"], body.model_dump(), source="app")
+    except recurring.RecurringError as exc:
+        raise HTTPException(status_code=400, detail=texts._(str(exc), lang))
+    return recurring.view(t, date.today())
+
+
+@router.patch("/recurring/{rid}")
+def recurring_update(rid: int, body: RecurringIn, shop: dict = Depends(current_shop),
+                     lang: str = Depends(ui_lang)) -> dict:
+    try:
+        t = recurring.update(shop["id"], rid, body.model_dump())
+    except recurring.RecurringError as exc:
+        raise HTTPException(status_code=400, detail=texts._(str(exc), lang))
+    if not t:
+        raise HTTPException(status_code=404, detail=texts._("Doimiy to'lov topilmadi", lang))
+    return recurring.view(t, date.today())
+
+
+@router.delete("/recurring/{rid}")
+def recurring_delete(rid: int, shop: dict = Depends(current_shop), lang: str = Depends(ui_lang)) -> dict:
+    if not recurring.delete(shop["id"], rid):
+        raise HTTPException(status_code=404, detail=texts._("Doimiy to'lov topilmadi", lang))
+    return {"ok": True}

@@ -15,6 +15,7 @@ import math
 from datetime import date, datetime, timedelta
 
 import db
+import recurring
 
 # --- константы -------------------------------------------------------------------
 
@@ -105,10 +106,13 @@ def _shop_start(shop_id: int) -> date:
 
 
 class _Averages:
-    """Средние продажи/обычные расходы по дням недели (за последние 4 таких же дня до today)."""
+    """Средние продажи/обычные расходы по дням недели (за последние 4 таких же дня до today).
+    Категории, у которых есть шаблон регулярного платежа (аренда/зарплата/коммуналка), в среднее не входят:
+    они придут в прогноз платежом по шаблону, иначе посчитались бы дважды."""
 
     def __init__(self, shop_id: int, today: date):
         start = _shop_start(shop_id)
+        skip = set(NON_REGULAR_CATEGORIES) | recurring.regular_categories(shop_id)
         since = today - timedelta(days=7 * AVG_WEEKS)
         rows = db.query(
             "SELECT date, kind, category, is_scheduled, amount FROM entries "
@@ -120,7 +124,7 @@ class _Averages:
         for r in rows:
             if r["kind"] == "sale":
                 sales[r["date"]] = sales.get(r["date"], 0) + r["amount"]
-            elif not r["is_scheduled"] and r["category"] not in NON_REGULAR_CATEGORIES:
+            elif not r["is_scheduled"] and r["category"] not in skip:
                 exps[r["date"]] = exps.get(r["date"], 0) + r["amount"]
         self.sales: dict[int, float] = {}
         self.expenses: dict[int, float] = {}
@@ -145,10 +149,24 @@ class _Averages:
         return self.sales[d.weekday()] - self.expenses[d.weekday()]
 
 
-def _pending_payments(shop_id: int) -> list[dict]:
-    return db.query(
+RECURRING_DAYS = 62   # насколько вперёд разворачиваем шаблоны регулярных платежей
+
+
+def _pending_payments(shop_id: int, today: date | None = None) -> list[dict]:
+    """Ожидаемые платежи: записанные (scheduled_payments) + ближайшие по шаблонам (id < 0, recurring_id)."""
+    today = _today(today)
+    real = db.query(
         "SELECT * FROM scheduled_payments WHERE shop_id=? AND status='pending' ORDER BY due_date, id",
         (shop_id,))
+    virtual = recurring.virtual_payments(shop_id, today, today + timedelta(days=RECURRING_DAYS), real)
+    out = real + virtual
+    out.sort(key=lambda p: (p["due_date"][:10], p["id"] < 0, abs(p["id"])))
+    return out
+
+
+def _payment_view(p: dict) -> dict:
+    return {"id": p["id"], "title": p["title"], "counterparty": p["counterparty"], "amount": p["amount"],
+            "due_date": p["due_date"], "recurring": bool(p.get("recurring_id"))}
 
 
 FLOW_TITLES = {
@@ -194,7 +212,7 @@ def _debtor_view(r: dict) -> dict:
 
 def default_horizon(shop_id: int, today: date | None = None) -> date:
     today = _today(today)
-    pend = _pending_payments(shop_id)
+    pend = _pending_payments(shop_id, today)
     if pend:
         return max(_d(pend[0]["due_date"]), today)
     return today + timedelta(days=DEFAULT_HORIZON_DAYS)
@@ -216,14 +234,15 @@ def free_money(shop_id: int, horizon_date: date | None = None, today: date | Non
         exp_exps += avg.expenses[d.weekday()]
         d += timedelta(days=1)
 
-    payments = [p for p in _pending_payments(shop_id) if _d(p["due_date"]) <= horizon]
+    pend = _pending_payments(shop_id, today)
+    payments = [p for p in pend if _d(p["due_date"]) <= horizon]
     payments_due = sum(p["amount"] for p in payments)
     flows = [f for f in _future_flows(shop_id, today) if _d(f["date"]) <= horizon]
     flows_total = sum(f["amount"] for f in flows)
     free = cash_now + exp_sales - exp_exps - payments_due + flows_total
 
     debts = open_debts(shop_id, today)
-    next_payment = _pending_payments(shop_id)[:1]
+    next_payment = [_payment_view(p) for p in pend[:1]]
     return {
         "today": today.isoformat(),
         "horizon": horizon.isoformat(),
@@ -233,9 +252,7 @@ def free_money(shop_id: int, horizon_date: date | None = None, today: date | Non
         "expected_sales": int(round(exp_sales)),
         "expected_expenses": int(round(exp_exps)),
         "payments_due": payments_due,
-        "payments": [
-            {"id": p["id"], "title": p["title"], "counterparty": p["counterparty"],
-             "amount": p["amount"], "due_date": p["due_date"]} for p in payments],
+        "payments": [_payment_view(p) for p in payments],
         "flows": [_flow_event(f) for f in flows],
         "flows_total": flows_total,
         "next_payment": next_payment[0] if next_payment else None,
@@ -255,7 +272,7 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
 
     avg = _Averages(shop_id, today)
     cash = cash_on(shop_id, today)
-    pend = _pending_payments(shop_id)
+    pend = _pending_payments(shop_id, today)
     flows = _future_flows(shop_id, today)
     end_date = today + timedelta(days=days)
 
@@ -280,7 +297,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
             "expected_sales": int(round(avg.sales[d.weekday()])),
             "expected_expenses": int(round(avg.expenses[d.weekday()])),
             "events": [{"id": p["id"], "type": "scheduled_payment", "title": p["title"],
-                        "counterparty": p["counterparty"], "amount": p["amount"]} for p in day_payments]
+                        "counterparty": p["counterparty"], "amount": p["amount"],
+                        "recurring": bool(p.get("recurring_id"))} for p in day_payments]
                       + [_flow_event(f) for f in day_flows],
             "red": balance < 0,
         })
@@ -290,7 +308,8 @@ def forecast(shop_id: int, days: int = 14, today: date | None = None) -> dict:
 
     events = [
         {"id": p["id"], "date": p["due_date"], "type": "scheduled_payment", "title": p["title"],
-         "counterparty": p["counterparty"], "amount": p["amount"], "overdue": _d(p["due_date"]) < today}
+         "counterparty": p["counterparty"], "amount": p["amount"], "overdue": _d(p["due_date"]) < today,
+         "recurring": bool(p.get("recurring_id"))}
         for p in pend if _d(p["due_date"]) <= end_date
     ] + [{**_flow_event(f), "overdue": False} for f in flows if _d(f["date"]) <= end_date]
     events.sort(key=lambda e: e["date"])
@@ -338,8 +357,10 @@ def recommendation(shop_id: int, today: date | None = None) -> dict:
     today = _today(today)
     fm = free_money(shop_id, today=today)
     free = fm["free_money"]
+    rel = reliability(shop_id, today)
+    # мало данных (< 50%) — банковские предложения не показываем, просим дополнить данные
     base = {"free_money": free, "horizon": fm["horizon"], "horizon_weekday": fm["horizon_weekday"],
-            "cash_now": fm["cash_now"]}
+            "cash_now": fm["cash_now"], "reliability": rel["percent"], "offers_allowed": not rel["low"]}
 
     if free < 0:
         gap = -free
@@ -402,3 +423,68 @@ def trust_share(shop_id: int) -> dict:
     for r in rows:
         out[db.trust_label(r["source"])] += r["c"] / total
     return {k: round(v, 3) for k, v in out.items()}
+
+
+# --- надёжность прогноза и пропуски ----------------------------------------------
+
+OWNER_SOURCES = ("voice", "text", "photo")      # записи владельца (наличные): голос, текст, фото
+CONFIRMED_SOURCES = ("bank", "link")             # подтверждённые: банк/UzQR/терминал, оплата по ссылке
+RELIABILITY_WINDOW = 14
+RELIABILITY_LOW = 50
+
+
+def reliability(shop_id: int, today: date | None = None) -> dict:
+    """«Посчитано по N% данных» — насколько прогнозу можно верить. Окно — 14 полных дней до сегодня.
+
+    confirmed   — доля подтверждённых денег (банк/ссылка) в обороте окна (по сумме);
+    regularity  — как часто владелец записывал наличные, относительно его обычного ритма (28 дней до окна);
+    coverage    — 1 − доля дней без единой записи по наличным.
+    percent = 40% confirmed + 30% regularity + 30% coverage. Ниже 50% — low (офферы банка скрыты).
+    """
+    today = _today(today)
+    start = _shop_start(shop_id)
+    win_start = max(start, today - timedelta(days=RELIABILITY_WINDOW))
+    n = (today - win_start).days
+    win_end = today if n > 0 else today + timedelta(days=1)   # новый бизнес: смотрим только сегодня
+    n = max(n, 1)
+    rows = db.query(
+        "SELECT date, source, amount FROM entries WHERE shop_id=? AND status='confirmed' AND date>=? AND date<?",
+        (shop_id, win_start.isoformat(), win_end.isoformat()))
+    total = sum(r["amount"] for r in rows)
+    confirmed = sum(r["amount"] for r in rows if r["source"] in CONFIRMED_SOURCES) / total if total else 0.0
+    owner_days = {r["date"] for r in rows if r["source"] in OWNER_SOURCES}
+    owner_count = sum(1 for r in rows if r["source"] in OWNER_SOURCES)
+    window = [win_start + timedelta(days=i) for i in range(n)]
+    missing = [d.isoformat() for d in window if d.isoformat() not in owner_days and d < today]
+    coverage = 1 - len(missing) / n
+
+    base_start = max(start, win_start - timedelta(days=28))
+    base_days = (win_start - base_start).days
+    recent_rate = owner_count / n
+    if base_days > 0:
+        base_count = db.scalar(
+            "SELECT COUNT(*) FROM entries WHERE shop_id=? AND status='confirmed' AND date>=? AND date<? "
+            f"AND source IN ({','.join('?' * len(OWNER_SOURCES))})",
+            (shop_id, base_start.isoformat(), win_start.isoformat(), *OWNER_SOURCES))
+        base_rate = base_count / base_days
+    else:
+        base_rate = 0.0
+    regularity = min(1.0, recent_rate / base_rate) if base_rate > 0 else (1.0 if recent_rate > 0 else 0.0)
+
+    percent = int(round(100 * (0.4 * confirmed + 0.3 * regularity + 0.3 * coverage)))
+    return {"percent": percent, "low": percent < RELIABILITY_LOW, "window_days": n,
+            "confirmed_share": round(confirmed, 3), "regularity": round(regularity, 3), "coverage": round(coverage, 3),
+            "missing_days": len(missing), "missing_dates": missing}
+
+
+def missing_yesterday(shop_id: int, today: date | None = None) -> str | None:
+    """Дата вчера (ISO), если за вчера нет ни одной записи владельца по наличным; иначе None.
+    Ничего не дописывает — только повод спросить владельца."""
+    today = _today(today)
+    y = today - timedelta(days=1)
+    if y < _shop_start(shop_id):
+        return None
+    n = db.scalar(
+        "SELECT COUNT(*) FROM entries WHERE shop_id=? AND date=? "
+        f"AND source IN ({','.join('?' * len(OWNER_SOURCES))})", (shop_id, y.isoformat(), *OWNER_SOURCES))
+    return None if n else y.isoformat()
