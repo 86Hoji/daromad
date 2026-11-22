@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 import api
 import config
 import db
+import tg_api
 from extras import adapters, payments, reminders
 from extras.payments import ExtrasError
 
@@ -81,6 +82,8 @@ app.include_router(api.router)
 app.include_router(reminders.router, dependencies=[Depends(api.require_debt_owner)])
 # оплата по ссылке открыта: её вызывает страница /pay/{token}, которую должник открывает из SMS
 app.include_router(payments.router)
+# фото чека / накладной из Mini App -> черновики (тот же pipeline, что у фото в боте)
+app.include_router(tg_api.router)
 
 
 @app.exception_handler(ExtrasError)
