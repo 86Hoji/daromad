@@ -349,7 +349,7 @@ export const RU: Record<string, string> = {
   "Pul chizig'i keyingi 14 kunni ko'rsatadi: qaysi kuni pul yetmaydi va uni qaysi qarzlar yopadi.":
     "Линия денег показывает следующие 14 дней: в какой день не хватит денег и какие долги закроют дыру.",
   "Bugun 2 million 300 ming sotdim, transportga 90 ming ketdi": "Сегодня продал на 2 300 000, на транспорт ушло 90 тысяч",
-  "Alisher 450 ming qarzga oldi": "Алишер взял в долг 450 тысяч",
+  "Jamshid 450 ming qarzga oldi": "Джамшид взял в долг 450 тысяч",
   "Payshanba kuni Akmalga tovar uchun 3 million to'lashim kerak": "В четверг надо заплатить Акмалю 3 миллиона за товар",
   "Nigora opa 300 ming qarzini qaytardi": "Нигора опа вернула долг 300 тысяч",
   "14 kun": "14 дней",

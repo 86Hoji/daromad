@@ -11,7 +11,7 @@ import { Button } from "../ui/Button";
 import { Chip, Logo, Skeleton } from "../ui/bits";
 import { LangSwitch, t } from "../lib/i18n";
 
-const DEMO: PayInfo = { business_name: "Dilshod Biznes", person_name: "Alisher", amount: 450_000, demo: true };
+const DEMO: PayInfo = { business_name: "Alisher Savdo", person_name: "Jamshid", amount: 450_000, demo: true };
 
 function normalize(raw: Record<string, unknown>): PayInfo {
   const get = (...keys: string[]) => keys.map((k) => raw[k]).find((v) => v !== undefined && v !== null);

@@ -348,7 +348,7 @@ export const EN: Record<string, string> = {
   "Pul chizig'i keyingi 14 kunni ko'rsatadi: qaysi kuni pul yetmaydi va uni qaysi qarzlar yopadi.":
     "The money line shows the next 14 days: which day you'll be short and which debts would cover it.",
   "Bugun 2 million 300 ming sotdim, transportga 90 ming ketdi": "Sold 2,300,000 today, spent 90K on transport",
-  "Alisher 450 ming qarzga oldi": "Alisher took 450K on credit",
+  "Jamshid 450 ming qarzga oldi": "Jamshid took 450K on credit",
   "Payshanba kuni Akmalga tovar uchun 3 million to'lashim kerak": "I have to pay Akmal 3 million for goods on Thursday",
   "Nigora opa 300 ming qarzini qaytardi": "Nigora opa paid back 300K",
   "14 kun": "14 days",

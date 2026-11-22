@@ -175,7 +175,7 @@ def test_seed_gives_350k_shortage_by_thursday(tmp_db):
     assert fm["free_money"] == -350_000
     assert fm["opening_cash"] > 0 and fm["cash_now"] > 0
     assert fm["total_receivable"] == 1_200_000
-    assert fm["top_debtors"][0]["person_name"] == "Alisher"
+    assert fm["top_debtors"][0]["person_name"] == "Jamshid"
     assert fm["top_debtors"][0]["days_open"] == 21
     share = logic.trust_share(1)["tasdiqlangan"]
     assert 0.6 <= share <= 0.7

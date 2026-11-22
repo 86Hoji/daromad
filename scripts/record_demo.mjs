@@ -58,7 +58,7 @@ await page.goto(`${APP}/app`);
 await page.waitForTimeout(4000);
 
 // 4. долг закрыт (пока без backend/extras — владелец подтверждает голосом)
-await say("Alisher 450 ming qarzini qaytardi");
+await say("Jamshid 450 ming qarzini qaytardi");
 await shot("debt-closed"); log("after debt free=" + (await free()));
 
 // 5. овердрафт на остаток

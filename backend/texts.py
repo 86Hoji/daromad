@@ -237,7 +237,7 @@ RU: dict[str, str] = {
         "Записывайте продажи, расходы и долги голосом — я заранее посчитаю свободные деньги и предупрежу, если их не хватит.",
     "Menga ovozli yoki matnli xabar yuboring, masalan:\n"
     "• «Bugun naqdga 2 million 300 ming sotdim»\n"
-    "• «Alisher 150 ming qarz oldi»\n"
+    "• «Jamshid 150 ming qarz oldi»\n"
     "• «Payshanba kuni yetkazib beruvchiga 3 million»\n"
     "• «Har oy 5-sanada ijara 3 million»\n"
     "• «Kim menga qarz?»  • «Payshanbagacha yetadimi?»\n\n"
@@ -245,7 +245,7 @@ RU: dict[str, str] = {
     "/holat — hisob holati va bo'sh pul, /qarzlar — qarzdorlar.":
         "Отправьте мне голосовое или текст, например:\n"
         "• «Сегодня продал за наличные на 2 300 000»\n"
-        "• «Алишер взял в долг 150 тысяч»\n"
+        "• «Джамшид взял в долг 150 тысяч»\n"
         "• «В четверг поставщику 3 миллиона»\n"
         "• «Каждый месяц 5-го аренда 3 миллиона»\n"
         "• «Кто мне должен?»  • «До четверга хватит?»\n\n"
@@ -261,7 +261,7 @@ RU: dict[str, str] = {
     "Demo biznes band.": "Демо-бизнес уже занят.",
     "Ulandi!": "Подключено!",
     "✅ Demo biznes ulandi.": "✅ Демо-бизнес подключён.",
-    "Biznesingiz nomini yozing, masalan: «Dilshod Biznes».": "Напишите название бизнеса, например: «Dilshod Biznes».",
+    "Biznesingiz nomini yozing, masalan: «Alisher Savdo».": "Напишите название бизнеса, например: «Alisher Savdo».",
     "Hozir hisobingizda qancha pul bor? (masalan: «2 million» yoki «1 500 000»)":
         "Сколько сейчас денег на счёте? (например: «2 миллиона» или «1 500 000»)",
     "Summani tushunmadim. Raqam bilan yozing, masalan: 1 500 000": "Не понял сумму. Напишите цифрами, например: 1 500 000",

@@ -20,7 +20,7 @@ backend/
   logic.py       free_money, forecast, recommendation (только код, без ИИ)
   api.py         REST API /api/* для Mini App
   db.py          SQLite (backend/data/daromad.db)
-  seed.py        демо-данные «Dilshod Biznes»
+  seed.py        демо-данные «Alisher Savdo»
   tests/         pytest
 miniapp/         одно Vite-приложение: React + TypeScript + Tailwind 4 + Recharts + motion + Lenis
   src/landing/   лендинг «/»: hero-сцена, scrollytelling «Qanday ishlaydi», песочница, доверие, банкам
@@ -161,7 +161,7 @@ curl "localhost:8000/api/audit?limit=20"
 
 # распознать текст -> черновики (pending) с id
 curl -X POST localhost:8000/api/text -H "Content-Type: application/json" \
-  -d '{"text":"Bugun 2 million 300 ming sotdim, Alisher 150 ming qarz oldi, payshanba kuni yetkazib beruvchiga 3 million"}'
+  -d '{"text":"Bugun 2 million 300 ming sotdim, Jamshid 150 ming qarz oldi, payshanba kuni yetkazib beruvchiga 3 million"}'
 
 # голос (ogg/webm/mp3)
 curl -X POST localhost:8000/api/voice -F "audio=@voice.ogg;type=audio/ogg"

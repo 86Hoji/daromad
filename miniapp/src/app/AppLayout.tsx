@@ -27,7 +27,7 @@ function Sidebar() {
       </NavLink>
 
       <div className="glass mt-8 rounded-el px-4 py-3.5">
-        <div className="truncate text-[15px] font-semibold">{summary?.shop.name ?? "Dilshod Biznes"}</div>
+        <div className="truncate text-[15px] font-semibold">{summary?.shop.name ?? "Alisher Savdo"}</div>
         <div className="mt-1.5 flex items-center gap-2">
           <Chip tone="brand">{t("demo")}</Chip>
           <span className="text-[13px] text-ink-3">{t("mikro biznes")}</span>

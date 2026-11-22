@@ -29,7 +29,7 @@
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD` | вход в кабинет Eskiz (notify.eskiz.uz) |
 | `ESKIZ_FROM` | имя отправителя, по умолчанию `4546` |
 | `ESKIZ_TEST_MODE` | `1` (по умолчанию) — тестовый аккаунт Eskiz: уходит «Bu Eskiz dan test», владелец в приложении видит настоящий текст; `0` — после договора с Eskiz |
-| `DEMO_DEBTOR_PHONE` | свой или командный номер: им становится телефон демо-должника Alisher в `seed.py`; на него разрешены настоящие SMS |
+| `DEMO_DEBTOR_PHONE` | свой или командный номер: им становится телефон демо-должника Jamshid в `seed.py`; на него разрешены настоящие SMS |
 | `SMS_ALLOWLIST` | ещё номера через запятую, на которые разрешены настоящие SMS |
 | `SMS_ALLOW_ANY` | `0` — при `SMS_PROVIDER=eskiz` SMS на номер не из двух строк выше **не уходит**; `1` — только в боевом режиме |
 
@@ -92,14 +92,14 @@ curl -s -X POST localhost:8000/api/pay/ТОКЕН/confirm
 ```
 
 Долг закрыт в БД (`debt_payments.source='link'`, в журнале «tasdiqlangan»), бо'ш пул вырос, владельцу в бот
-пришло `Alisher to'ladi ✅ 450 000 so'm`. Повторный confirm
+пришло `Jamshid to'ladi ✅ 450 000 so'm`. Повторный confirm
 возвращает `"already_paid": true` и не списывает. Проверка отказов:
 
 ```bash
 curl -s -X POST localhost:8000/api/debts/2/remind
 ```
 
-→ `{"error":"no_consent"}` (в демо-сиде согласие на SMS есть только у Alisher).
+→ `{"error":"no_consent"}` (в демо-сиде согласие на SMS есть только у Jamshid).
 
 **SMS:**
 

@@ -29,8 +29,8 @@ def client(tmp_db, tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def alisher_id() -> int:
-    return db.query_one("SELECT id FROM debts WHERE shop_id=1 AND person_name='Alisher'")["id"]
+def jamshid_id() -> int:
+    return db.query_one("SELECT id FROM debts WHERE shop_id=1 AND person_name='Jamshid'")["id"]
 
 
 def signed(user_id: int) -> str:
@@ -40,7 +40,7 @@ def signed(user_id: int) -> str:
 
 
 def test_reminder_link_payment_closes_debt_and_changes_free_money(client):
-    did = alisher_id()
+    did = jamshid_id()
     before = client.get("/api/summary").json()
 
     p = client.post(f"/api/debts/{did}/remind/preview").json()
@@ -84,12 +84,12 @@ def test_other_shops_debt_is_404_for_owner_routes(client):
     r = client.post(f"/api/debts/{foreign}/remind/preview", headers={"X-Telegram-Init-Data": signed(777)})
     assert r.status_code == 200 and r.json()["can_send"] is True
     # а свой долг магазина 1 из-под магазина 777 — нет
-    r = client.post(f"/api/debts/{alisher_id()}/remind", headers={"X-Telegram-Init-Data": signed(777)})
+    r = client.post(f"/api/debts/{jamshid_id()}/remind", headers={"X-Telegram-Init-Data": signed(777)})
     assert r.status_code == 404 and sms.read_outbox() == []
 
 
 def test_owner_routes_reject_bad_init_data(client):
-    r = client.post(f"/api/debts/{alisher_id()}/remind", headers={"X-Telegram-Init-Data": "user=%7B%7D&hash=bad"})
+    r = client.post(f"/api/debts/{jamshid_id()}/remind", headers={"X-Telegram-Init-Data": "user=%7B%7D&hash=bad"})
     assert r.status_code == 401 and sms.read_outbox() == []
 
 
@@ -99,7 +99,7 @@ def test_error_codes_reach_the_ui(client):
     assert p["can_send"] is False and p["reason"] == "no_phone"
     r = client.post(f"/api/debts/{nigora}/remind")
     assert r.status_code == 422 and r.json() == {"error": "no_phone", "detail": ""}
-    did = alisher_id()
+    did = jamshid_id()
     client.post(f"/api/debts/{did}/remind")
     r = client.post(f"/api/debts/{did}/remind")
     assert r.status_code == 429 and r.json()["error"] == "too_soon"
@@ -119,7 +119,7 @@ def test_owner_gets_bot_message_with_new_free_money(client):
 
     async def scenario():
         bot.install_owner_notifier(FakeBot(), asyncio.get_running_loop())
-        did = alisher_id()
+        did = jamshid_id()
         r = await asyncio.to_thread(client.post, f"/api/debts/{did}/remind")
         token = r.json()["pay_url"].rsplit("/", 1)[1]
         await asyncio.to_thread(client.post, f"/api/pay/{token}/confirm")   # sync-роут в другом потоке
@@ -131,7 +131,7 @@ def test_owner_gets_bot_message_with_new_free_money(client):
     asyncio.run(scenario())
     adapters.set_notifier(None)
     assert sent and sent[0][0] == 555
-    assert "Alisher to'ladi ✅ 450 000 so'm" in sent[0][1] and "tasdiqlangan" in sent[0][1] and "Bo'sh pul" in sent[0][1]
+    assert "Jamshid to'ladi ✅ 450 000 so'm" in sent[0][1] and "tasdiqlangan" in sent[0][1] and "Bo'sh pul" in sent[0][1]
 
 
 def test_photo_becomes_photo_drafts(tmp_db, monkeypatch):
@@ -139,8 +139,8 @@ def test_photo_becomes_photo_drafts(tmp_db, monkeypatch):
     from extras import vision
 
     async def fake(image, mime=None, today=None):
-        return {"intent": "record", "transcript": "Payme: Alisher 450 000",
-                "events": [{"type": "debt_returned", "amount": 450_000, "person": "Alisher", "phone": None,
+        return {"intent": "record", "transcript": "Payme: Jamshid 450 000",
+                "events": [{"type": "debt_returned", "amount": 450_000, "person": "Jamshid", "phone": None,
                             "category": None, "due_date": None, "note": None, "amount_text": "450 000",
                             "needs_check": False}]}
 

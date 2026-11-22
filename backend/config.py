@@ -48,7 +48,7 @@ def _digits_phone(raw: str) -> str:
     return "+" + d if len(d) == 12 and d.startswith("998") else ""
 
 
-# Номер демо-должника (Alisher в seed.py): свой или командный, чтобы демо-SMS не ушло незнакомцу.
+# Номер демо-должника (Jamshid в seed.py): свой или командный, чтобы демо-SMS не ушло незнакомцу.
 DEMO_DEBTOR_PHONE: str = _digits_phone(os.getenv("DEMO_DEBTOR_PHONE", ""))
 
 

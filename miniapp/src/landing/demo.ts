@@ -61,8 +61,8 @@ export const EXAMPLES: { text: string; drafts: Draft[] }[] = [
     drafts: [draft(-11, { type: "sale", amount: 2300000 }), draft(-12, { type: "expense", amount: 90000, category: "transport" })],
   },
   {
-    text: "Alisher 450 ming qarzga oldi",
-    drafts: [draft(-21, { type: "debt_given", amount: 450000, person: "Alisher" })],
+    text: "Jamshid 450 ming qarzga oldi",
+    drafts: [draft(-21, { type: "debt_given", amount: 450000, person: "Jamshid" })],
   },
   {
     text: "Payshanba kuni Akmalga tovar uchun 3 million to'lashim kerak",

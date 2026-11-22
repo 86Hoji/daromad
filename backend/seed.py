@@ -1,4 +1,4 @@
-"""Демо-данные: «Dilshod Biznes» (малый торгово-сервисный бизнес, владелец Dilshod), 30 дней истории.
+"""Демо-данные: «Alisher Savdo» (малый торгово-сервисный бизнес, владелец Alisher), 30 дней истории.
 
     python seed.py --reset    # пересоздать демо-бизнес (DEV_SHOP_ID), идемпотентно
 
@@ -15,8 +15,8 @@ import config
 import db
 import logic
 
-SHOP_NAME = "Dilshod Biznes"
-OWNER = "Dilshod"
+SHOP_NAME = "Alisher Savdo"
+OWNER = "Alisher"
 TARGET_FREE = -350_000
 AKMAL_AMOUNT = 3_000_000
 RENT = 2_500_000
@@ -26,7 +26,7 @@ DRAW_WEEKDAYS = (2, 6)       # среда и воскресенье
 MIN_KEEP = 300_000           # ниже этого фактический остаток в истории не опускается
 
 DEBTS = [  # (имя, сумма, дней назад, телефон, согласие на SMS)
-    ("Alisher", 450_000, 21, "+998901234567", True),
+    ("Jamshid", 450_000, 21, "+998901234567", True),
     ("Nigora opa", 300_000, 9, None, False),
     ("Bobur", 150_000, 2, None, False),
     ("Malika", 120_000, 12, "+998935557788", False),
@@ -108,7 +108,7 @@ def seed(reset: bool = False, today: date | None = None, shop_id: int | None = N
                     (shop_id, "Akmal — tovar uchun", "Akmal", AKMAL_AMOUNT, d.isoformat(), "bank"))
 
         for name, amount, ago, phone, consent in DEBTS:
-            if name == "Alisher" and config.DEMO_DEBTOR_PHONE:
+            if name == "Jamshid" and config.DEMO_DEBTOR_PHONE:
                 phone = config.DEMO_DEBTOR_PHONE      # свой/командный номер: демо-SMS не уйдёт незнакомцу
             conn.execute(
                 "INSERT INTO debts (shop_id, person_name, phone, sms_consent, amount, remaining, created_at, status) "

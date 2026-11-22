@@ -220,7 +220,7 @@ INTRO = ("Assalomu alaykum! Men <b>Flowcast</b> — kichik va mikro biznes uchun
 
 HELP = ("Menga ovozli yoki matnli xabar yuboring, masalan:\n"
         "• «Bugun naqdga 2 million 300 ming sotdim»\n"
-        "• «Alisher 150 ming qarz oldi»\n"
+        "• «Jamshid 150 ming qarz oldi»\n"
         "• «Payshanba kuni yetkazib beruvchiga 3 million»\n"
         "• «Har oy 5-sanada ijara 3 million»\n"
         "• «Kim menga qarz?»  • «Payshanbagacha yetadimi?»\n\n"
@@ -288,7 +288,7 @@ async def onb_name(message: Message, state: FSMContext) -> None:
     lang = remember_lang(message.from_user.id, texts.detect_lang(message.text))
     name = message.text.strip()[:80]
     if not name or name.startswith("/"):
-        await message.answer(_("Biznesingiz nomini yozing, masalan: «Dilshod Biznes».", lang))
+        await message.answer(_("Biznesingiz nomini yozing, masalan: «Alisher Savdo».", lang))
         return
     await state.update_data(name=name)
     await state.set_state(Onboarding.cash)
@@ -659,7 +659,7 @@ _PAID_RE = re.compile(r"^(?P<name>.+?) to'ladi ✅ (?P<amount>[\d  ]+) so'm$")
 
 
 def owner_payment_text(shop_id: int, text: str) -> str:
-    """«Alisher to'ladi ✅ 450 000 so'm» + новые свободные деньги — владелец сразу видит эффект."""
+    """«Jamshid to'ladi ✅ 450 000 so'm» + новые свободные деньги — владелец сразу видит эффект."""
     shop = db.get_shop(shop_id) or {}
     lang = shop.get("lang") if shop.get("lang") in texts.LANGS else texts.DEFAULT_LANG
     m = _PAID_RE.match(text.strip())

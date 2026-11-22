@@ -12,7 +12,7 @@
 2. Долг вернули (шаг 4):
 
    ```
-   Alisher 450 ming qarzini qaytardi
+   Jamshid 450 ming qarzini qaytardi
    ```
 
 3. Вопрос, текстовый и голосовой ответ (шаг 6):
