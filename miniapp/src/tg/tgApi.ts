@@ -1,6 +1,7 @@
 // Адреса Mini App из backend/tg_api.py: скан фото и итоги за 7 / 30 дней.
 // Свои функции, а не правка общего lib/api.ts: сайт правится параллельно.
 import { API_URL, ApiError, type Entry, type ProcessResult } from "../lib/api";
+import { sessionToken } from "../lib/auth";
 import { getLang } from "../lib/i18n";
 import { initData } from "../lib/telegram";
 
@@ -26,8 +27,11 @@ async function shrink(file: File): Promise<Blob> {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // как lib/api.ts: в Telegram — initData, на сайте — Bearer-сессия (если вошли), иначе демо-бизнес
   const headers = new Headers({ "Accept-Language": getLang() });
+  const token = initData ? null : sessionToken();
   if (initData) headers.set("X-Telegram-Init-Data", initData);
+  else if (token) headers.set("Authorization", `Bearer ${token}`);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });

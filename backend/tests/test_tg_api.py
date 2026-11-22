@@ -157,3 +157,14 @@ def test_period_validates_days(client):
     assert client.get("/api/tg/period?days=0").status_code == 422
     assert client.get("/api/tg/period?days=1000").status_code == 422
     assert client.get("/api/tg/period").json()["days"] == 7
+
+
+def test_tg_endpoints_accept_site_session(client, monkeypatch):
+    token = client.post("/api/auth/demo").json()["token"]
+    ok = client.get("/api/tg/period?days=7", headers={"Authorization": f"Bearer {token}"})
+    assert ok.status_code == 200 and ok.json()["entries"]
+    bad = client.get("/api/tg/period?days=7", headers={"Authorization": "Bearer nope"})
+    assert bad.status_code == 401
+    monkeypatch.setattr(vision, "aparse_photo", fake_events(ev("sale", 100_000)))
+    r = client.post("/api/photo", files={"image": ("c.jpg", JPEG, "image/jpeg")}, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200 and r.json()["drafts"]
